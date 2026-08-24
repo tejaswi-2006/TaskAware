@@ -1,0 +1,19 @@
+# Virtual environment
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Uploaded datasets
+uploads/*
+!uploads/.gitkeep
+
+# Environment variables
+.env
+
+# Database filesgit status
+instance/
+
+# VS Code settings
+.vscode/

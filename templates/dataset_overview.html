@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Dataset Overview | TaskAware</title>
+</head>
+
+
+<body>
+
+    <!-- PAGE TITLE -->
+
+    <h1>Dataset Overview</h1>
+
+    <h3>File Name: {{ filename }}</h3>
+
+    <hr>
+
+
+    <!-- DATASET SHAPE -->
+
+    <h2>Dataset Shape</h2>
+
+    <p>
+        <strong>Number of Rows:</strong>
+        {{ rows }}
+    </p>
+
+    <p>
+        <strong>Number of Columns:</strong>
+        {{ columns }}
+    </p>
+
+    <hr>
+
+
+    <!-- COLUMN NAMES -->
+
+    <h2>Column Names</h2>
+
+    <ul>
+
+        {% for column in column_names %}
+
+        <li>
+            {{ column }}
+        </li>
+
+        {% endfor %}
+
+    </ul>
+
+    <hr>
+
+
+    <!-- DATA TYPES -->
+
+    <h2>Data Types</h2>
+
+    <ul>
+
+        {% for column, dtype in data_types.items() %}
+
+        <li>
+            <strong>{{ column }}</strong> :
+            {{ dtype }}
+        </li>
+
+        {% endfor %}
+
+    </ul>
+
+    <hr>
+
+
+    <!-- MISSING VALUES -->
+
+    <h2>Missing Values</h2>
+
+    <ul>
+
+        {% for column, missing in missing_values.items() %}
+
+        <li>
+            <strong>{{ column }}</strong> :
+            {{ missing }}
+        </li>
+
+        {% endfor %}
+
+    </ul>
+
+    <hr>
+
+
+    <!-- DUPLICATE ROWS -->
+
+    <h2>Duplicate Rows</h2>
+
+    <p>
+        {{ duplicate_rows }}
+    </p>
+
+    <hr>
+
+
+    <!-- DATASET VALIDATION -->
+
+    <h2>Dataset Validation</h2>
+
+    <p>
+        <strong>Is Dataset Empty:</strong>
+        {{ validation_results["is_empty"] }}
+    </p>
+
+
+    <!-- CONSTANT COLUMNS -->
+
+    <h3>Constant Columns</h3>
+
+    {% if validation_results["constant_columns"] %}
+
+    <ul>
+
+        {% for column in validation_results["constant_columns"] %}
+
+        <li>
+            {{ column }}
+        </li>
+
+        {% endfor %}
+
+    </ul>
+
+    {% else %}
+
+    <p>
+        No constant columns found.
+    </p>
+
+    {% endif %}
+
+
+    <!-- POSSIBLE ID COLUMNS -->
+
+    <h3>Possible ID Columns</h3>
+
+    {% if validation_results["possible_id_columns"] %}
+
+    <ul>
+
+        {% for column in validation_results["possible_id_columns"] %}
+
+        <li>
+            {{ column }}
+        </li>
+
+        {% endfor %}
+
+    </ul>
+
+    {% else %}
+
+    <p>
+        No possible ID columns found.
+    </p>
+
+    {% endif %}
+
+    <hr>
+
+
+    <!-- INITIAL EDA -->
+
+    <h2>Initial Exploratory Data Analysis</h2>
+
+
+    <!-- NUMERICAL COLUMNS -->
+
+    <h3>Numerical Columns</h3>
+
+    {% if eda_results["numerical_columns"] %}
+
+    <ul>
+
+        {% for column in eda_results["numerical_columns"] %}
+
+        <li>
+            {{ column }}
+        </li>
+
+        {% endfor %}
+
+    </ul>
+
+    {% else %}
+
+    <p>
+        No numerical columns found.
+    </p>
+
+    {% endif %}
+
+
+    <!-- CATEGORICAL COLUMNS -->
+
+    <h3>Categorical Columns</h3>
+
+    {% if eda_results["categorical_columns"] %}
+
+    <ul>
+
+        {% for column in eda_results["categorical_columns"] %}
+
+        <li>
+            {{ column }}
+        </li>
+
+        {% endfor %}
+
+    </ul>
+
+    {% else %}
+
+    <p>
+        No categorical columns found.
+    </p>
+
+    {% endif %}
+
+
+    <!-- UNIQUE VALUES -->
+
+    <h3>Unique Values per Column</h3>
+
+    <table border="1" cellpadding="8">
+
+        <tr>
+
+            <th>Column</th>
+            <th>Unique Values</th>
+
+        </tr>
+
+
+        {% for column, count in eda_results["unique_values"].items() %}
+
+        <tr>
+
+            <td>
+                {{ column }}
+            </td>
+
+            <td>
+                {{ count }}
+            </td>
+
+        </tr>
+
+        {% endfor %}
+
+    </table>
+
+    <hr>
+
+
+    <!-- TARGET VARIABLE ANALYSIS -->
+
+    <h2>Target Variable Analysis</h2>
+
+
+    {% if target_candidates %}
+
+
+        <!-- RECOMMENDED TARGET -->
+
+        <h3>Recommended Target Variable</h3>
+
+        <p>
+
+            <strong>
+                {{ target_candidates[0]["column"] }}
+            </strong>
+
+        </p>
+
+
+        <p>
+
+            <strong>Column Type:</strong>
+
+            {{ target_candidates[0]["type"] }}
+
+        </p>
+
+
+        <p>
+
+            <strong>Target Score:</strong>
+
+            {{ target_candidates[0]["score"] }}
+
+        </p>
+
+
+        <!-- REASONS -->
+
+        <h3>Why this column was selected</h3>
+
+        <ul>
+
+            {% for reason in target_candidates[0]["reasons"] %}
+
+            <li>
+                {{ reason }}
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+
+        <!-- ALL TARGET CANDIDATES -->
+
+        <h3>All Target Candidates</h3>
+
+        <table border="1" cellpadding="8">
+
+            <tr>
+
+                <th>Rank</th>
+
+                <th>Column</th>
+
+                <th>Type</th>
+
+                <th>Unique Values</th>
+
+                <th>Score</th>
+
+            </tr>
+
+
+            {% for candidate in target_candidates %}
+
+            <tr>
+
+                <td>
+                    {{ loop.index }}
+                </td>
+
+
+                <td>
+                    {{ candidate["column"] }}
+                </td>
+
+
+                <td>
+                    {{ candidate["type"] }}
+                </td>
+
+
+                <td>
+                    {{ candidate["unique_values"] }}
+                </td>
+
+
+                <td>
+                    {{ candidate["score"] }}
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+
+        <br>
+
+
+        <!-- CONTINUE BUTTON -->
+
+        <form action="/target-selection" method="POST">
+
+            <input
+                type="hidden"
+                name="recommended_target"
+                value="{{ target_candidates[0]['column'] }}"
+            >
+
+            <button type="submit">
+
+                Continue to Target Selection
+
+            </button>
+
+        </form>
+
+
+    {% else %}
+
+        <p>
+            No target candidates found.
+        </p>
+
+    {% endif %}
+
+
+    <hr>
+
+
+    <!-- DATASET PREVIEW -->
+
+    <h2>First 5 Rows</h2>
+
+    {{ preview | safe }}
+
+
+    <br>
+    <br>
+
+
+    <!-- UPLOAD ANOTHER DATASET -->
+
+    <a href="/upload">
+
+        Upload Another Dataset
+
+    </a>
+
+
+</body>
+
+</html>

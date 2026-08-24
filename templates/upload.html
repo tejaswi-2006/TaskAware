@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Upload Dataset | TaskAware</title>
+</head>
+
+<body>
+
+    <h1>Upload Your Dataset</h1>
+
+    <p>
+        Upload a CSV or Excel dataset to begin the analysis.
+    </p>
+
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+        <label for="dataset">Choose Dataset:</label>
+
+        <br><br>
+
+        <input 
+            type="file" 
+            id="dataset" 
+            name="dataset"
+            accept=".csv,.xlsx"
+        >
+
+        <br><br>
+
+        <button type="submit">
+            Upload and Analyze
+        </button>
+    </form>
+
+    <br>
+
+    <a href="/">
+        Back to Home
+    </a>
+
+</body>
+
+</html>
