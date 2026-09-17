@@ -706,16 +706,22 @@
 
 
     <!-- ================================================= -->
-    <!-- ID COLUMNS -->
+    <!-- EXCLUDED COLUMNS -->
     <!-- ================================================= -->
 
-    {% if eda["id_columns"] %}
+    {% if eda["id_columns"] or eda["constant_columns"] %}
 
     <div class="card">
 
         <h2>
-            Excluded Identifier Columns
+            Excluded Columns
         </h2>
+
+        {% if eda["id_columns"] %}
+
+        <h3>
+            Identifier Columns
+        </h3>
 
         <p>
             The following columns were treated as identifiers
@@ -733,6 +739,33 @@
             {% endfor %}
 
         </ul>
+
+        {% endif %}
+
+        {% if eda["constant_columns"] %}
+
+        <h3>
+            Constant Columns
+        </h3>
+
+        <p>
+            The following columns contain a single constant
+            value and carry no predictive information:
+        </p>
+
+        <ul>
+
+            {% for column in eda["constant_columns"] %}
+
+            <li>
+                {{ column }}
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+        {% endif %}
 
     </div>
 

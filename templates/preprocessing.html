@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>TaskAware | Data Preprocessing</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1150px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .success {
+            border: 2px solid #333;
+        }
+
+        .warning {
+            border: 2px solid #e0a800;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #f3f3f3;
+        }
+
+        .meta {
+            color: #555;
+        }
+
+        .warning-text {
+            color: #9a6700;
+        }
+
+        button {
+            padding: 11px 20px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        .row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .col {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        ul.steps {
+            padding-left: 20px;
+        }
+
+        ul.steps li {
+            margin: 6px 0;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <h1>
+        Data Preprocessing
+    </h1>
+
+    <p class="meta">
+        File: {{ filename }}
+        &nbsp;|&nbsp;
+        Problem Type: {{ problem_type }}
+    </p>
+
+    {% if target_column %}
+    <p class="meta">
+        Target: {{ target_column }}
+    </p>
+    {% endif %}
+
+    {% if objective %}
+    <p class="meta">
+        Objective: {{ objective }}
+    </p>
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- PREPROCESSING STEPS -->
+    <!-- ================================================= -->
+
+    <div class="card success">
+
+        <h2>
+            Preprocessing Plan
+        </h2>
+
+        <p>
+            TaskAware will apply the following steps to
+            prepare the dataset for
+            <strong>{{ problem_type }}</strong>:
+        </p>
+
+        <ul class="steps">
+
+            {% for step in prep["steps"] %}
+
+            <li>
+                {{ step }}
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+        <p class="meta">
+            Dataset rows: {{ prep["n_rows"] }}
+        </p>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- LEAKAGE SAFETY -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Leakage-Safe Preprocessing
+        </h2>
+
+        <p>
+            All preprocessing is applied inside a
+            scikit-learn
+            <strong>Pipeline + ColumnTransformer</strong>.
+        </p>
+
+        <p>
+            The transformations
+            (imputation, encoding, scaling) are
+            <strong>
+                fitted only on the training fold
+            </strong>.
+            The test fold is transformed using the
+            already-fitted transformer.
+        </p>
+
+        <p>
+            TaskAware never fits preprocessing on the
+            full dataset before splitting, because that
+            would leak information from the test set into
+            the training data.
+        </p>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- MISSING VALUES -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Missing Value Handling
+        </h2>
+
+        {% if prep["has_missing"] %}
+
+        <p>
+            The following columns contain missing values
+            and will be imputed during preprocessing:
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Column</th>
+                <th>Missing Count</th>
+                <th>Missing %</th>
+                <th>Strategy</th>
+            </tr>
+
+            {% for item in prep["missing_summary"] %}
+
+            {% if item["missing_count"] > 0 %}
+
+            <tr>
+
+                <td>{{ item["column"] }}</td>
+
+                <td>{{ item["missing_count"] }}</td>
+
+                <td>{{ item["missing_ratio"] | round(3) }}</td>
+
+                <td>{{ item["strategy"] }}</td>
+
+            </tr>
+
+            {% endif %}
+
+            {% endfor %}
+
+        </table>
+
+        {% else %}
+
+        <p>
+            No missing values were detected in the
+            feature columns.
+        </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- TRANSFORMATION PREVIEW -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Transformation Preview
+        </h2>
+
+        <p class="meta">
+            Note: this preview fits the pipeline on the
+            full dataset only to demonstrate the output
+            shape. During real training the pipeline is
+            fitted on the training fold only.
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Rows</th>
+                <th>Features Before Encoding</th>
+                <th>Features After Encoding</th>
+            </tr>
+
+            <tr>
+
+                <td>{{ prep["preview"]["rows"] }}</td>
+
+                <td>{{ prep["preview"]["features_before"] }}</td>
+
+                <td>{{ prep["preview"]["features_after"] }}</td>
+
+            </tr>
+
+        </table>
+
+        {% if prep["preview"]["feature_names"] %}
+
+        <h3>
+            Encoded Feature Names
+        </h3>
+
+        <p class="meta">
+            {{ prep["preview"]["feature_names"] | join(", ") }}
+        </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- FEATURE SELECTION -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Feature Selection Report
+        </h2>
+
+        <p>
+            <strong>
+                Number of usable features:
+            </strong>
+
+            {{ selection["feature_count"] }}
+        </p>
+
+        {% if selection["high_correlation"] %}
+
+        <h3>
+            Highly Correlated Feature Pairs
+        </h3>
+
+        <p class="warning-text">
+            These pairs may carry redundant information.
+            TaskAware reports them but does not automatically
+            remove features.
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Feature A</th>
+                <th>Feature B</th>
+                <th>Correlation</th>
+                <th>Level</th>
+            </tr>
+
+            {% for item in selection["high_correlation"] %}
+
+            <tr>
+
+                <td>{{ item["feature_a"] }}</td>
+
+                <td>{{ item["feature_b"] }}</td>
+
+                <td>{{ item["correlation"] }}</td>
+
+                <td>{{ item["redundancy_level"] }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% endif %}
+
+        {% if selection["low_variance"] %}
+
+        <h3>
+            Low Information Features
+        </h3>
+
+        <p class="warning-text">
+            These features have very little variation and
+            may add limited predictive value.
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Column</th>
+                <th>Standard Deviation</th>
+                <th>Note</th>
+            </tr>
+
+            {% for item in selection["low_variance"] %}
+
+            <tr>
+
+                <td>{{ item["column"] }}</td>
+
+                <td>{{ item["std"] if item["std"] is not none else "-" }}</td>
+
+                <td>{{ item["note"] }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% endif %}
+
+        {% if selection["leakage_candidates"] %}
+
+        <h3>
+            Potential Leakage Candidates
+        </h3>
+
+        <p class="warning-text">
+            The following features correlate strongly with
+            the target. Review whether they would be known
+            before the outcome occurs.
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Feature</th>
+                <th>Correlation with Target</th>
+                <th>Warning</th>
+            </tr>
+
+            {% for item in selection["leakage_candidates"] %}
+
+            <tr>
+
+                <td>{{ item["column"] }}</td>
+
+                <td>{{ item["correlation_with_target"] }}</td>
+
+                <td>{{ item["warning"] }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% endif %}
+
+        {% if not selection["high_correlation"]
+              and not selection["low_variance"]
+              and not selection["leakage_candidates"] %}
+
+        <p>
+            No high-correlation, low-variance or
+            potential-leakage features were detected.
+        </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- TARGET ENCODING -->
+    <!-- ================================================= -->
+
+    {% if prep["target_info"] and prep["target_info"]["mapping"] %}
+
+    <div class="card">
+
+        <h2>
+            Target Encoding
+        </h2>
+
+        <p>
+            For classification, string labels are encoded
+            to integers for the model:
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Label</th>
+                <th>Encoded Value</th>
+            </tr>
+
+            {% for label, value in prep["target_info"]["mapping"].items() %}
+
+            <tr>
+
+                <td>{{ label }}</td>
+
+                <td>{{ value }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- NEXT STAGE -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Data Ready
+        </h2>
+
+        <p>
+            The dataset is prepared for
+            <strong>{{ problem_type }}</strong>.
+        </p>
+
+        <form
+            action="/model-training"
+            method="POST"
+        >
+
+            <input
+                type="hidden"
+                name="filename"
+                value="{{ filename }}"
+            >
+
+            <input
+                type="hidden"
+                name="target"
+                value="{{ target_column or '' }}"
+            >
+
+            <input
+                type="hidden"
+                name="problem_type"
+                value="{{ problem_type }}"
+            >
+
+            <input
+                type="hidden"
+                name="objective"
+                value="{{ objective }}"
+            >
+
+            <button type="submit">
+                Proceed to Model Training
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <br>
+
+    <a href="/upload">
+        ← Upload Another Dataset
+    </a>
+
+</body>
+
+</html>

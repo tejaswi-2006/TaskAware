@@ -12,6 +12,8 @@ from modules.initial_eda import perform_initial_eda
 from modules.objective_target import analyze_target_candidates
 from modules.problem_type_detector import detect_problem_type
 from modules.detailed_eda import perform_detailed_eda
+from modules.preprocessing import prepare_preprocessing
+from modules.feature_selection import perform_feature_selection
 
 
 app = Flask(__name__)
@@ -1098,6 +1100,159 @@ def detailed_eda():
         charts_folder=app.config[
             "CHARTS_FOLDER"
         ]
+    )
+
+
+# ============================================================
+# PREPROCESSING
+# ============================================================
+
+@app.route(
+    "/preprocessing",
+    methods=["POST"]
+)
+def preprocessing():
+
+    # --------------------------------------------------------
+    # INPUT
+    # --------------------------------------------------------
+
+    filename = request.form.get(
+        "filename",
+        ""
+    ).strip()
+
+    target_column = request.form.get(
+        "target",
+        ""
+    ).strip()
+
+    problem_type = request.form.get(
+        "problem_type",
+        ""
+    ).strip()
+
+    objective = request.form.get(
+        "objective",
+        ""
+    ).strip()
+
+    # --------------------------------------------------------
+    # VALIDATION
+    # --------------------------------------------------------
+
+    if not filename:
+
+        return (
+            "Dataset information is missing."
+        )
+
+    if not problem_type:
+
+        return (
+            "Problem type information is missing."
+        )
+
+    if not target_column and problem_type != "Clustering":
+
+        return (
+            "No target variable was provided."
+        )
+
+    filename = secure_filename(
+        filename
+    )
+
+    filepath = os.path.join(
+        app.config["UPLOAD_FOLDER"],
+        filename
+    )
+
+    if not os.path.exists(filepath):
+
+        return (
+            "Dataset file not found."
+        )
+
+    # --------------------------------------------------------
+    # LOAD DATASET
+    # --------------------------------------------------------
+
+    try:
+
+        df = load_dataset(filepath)
+
+    except Exception as e:
+
+        return (
+            "Unable to read dataset: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # PREPROCESSING PLAN
+    # --------------------------------------------------------
+
+    try:
+
+        prep = prepare_preprocessing(
+            df,
+            target_column,
+            problem_type
+        )
+
+    except Exception as e:
+
+        return (
+            "Unable to prepare preprocessing: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # FEATURE SELECTION REPORT
+    # --------------------------------------------------------
+
+    try:
+
+        selection = perform_feature_selection(
+            df,
+            prep["roles"]["feature_columns"],
+            target_column=(
+                prep["target_column"]
+            )
+        )
+
+    except Exception as e:
+
+        selection = {
+            "feature_count": 0,
+            "high_correlation": [],
+            "high_corr_count": 0,
+            "low_variance": [],
+            "low_variance_count": 0,
+            "leakage_candidates": [],
+            "leakage_count": 0
+        }
+
+    # --------------------------------------------------------
+    # RESULTS PAGE
+    # --------------------------------------------------------
+
+    return render_template(
+
+        "preprocessing.html",
+
+        filename=filename,
+
+        target_column=prep["target_column"],
+
+        problem_type=problem_type,
+
+        objective=objective,
+
+        prep=prep,
+
+        selection=selection
     )
 
 

@@ -630,10 +630,22 @@ def perform_detailed_eda(
 
     id_columns = _detect_id_columns(df)
 
+    # Constant columns carry no predictive information
+    constant_columns = [
+        column
+        for column in df.columns
+        if column not in id_columns
+        and column != target_column
+        and df[column].nunique(
+            dropna=True
+        ) <= 1
+    ]
+
     feature_columns = [
         column
         for column in df.columns
         if column not in id_columns
+        and column not in constant_columns
         and column != target_column
     ]
 
@@ -779,6 +791,7 @@ def perform_detailed_eda(
         "target_column": target_column,
         "problem_type": problem_type,
         "id_columns": id_columns,
+        "constant_columns": constant_columns,
         "feature_columns": feature_columns,
         "numerical_columns": numerical_columns,
         "categorical_columns": categorical_columns,
