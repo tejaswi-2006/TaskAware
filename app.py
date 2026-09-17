@@ -14,6 +14,8 @@ from modules.problem_type_detector import detect_problem_type
 from modules.detailed_eda import perform_detailed_eda
 from modules.preprocessing import prepare_preprocessing
 from modules.feature_selection import perform_feature_selection
+from modules.model_trainer import train_models
+from modules.model_selector import select_best_model
 
 
 app = Flask(__name__)
@@ -1253,6 +1255,149 @@ def preprocessing():
         prep=prep,
 
         selection=selection
+    )
+
+
+# ============================================================
+# MODEL TRAINING
+# ============================================================
+
+@app.route(
+    "/model-training",
+    methods=["POST"]
+)
+def model_training():
+
+    # --------------------------------------------------------
+    # INPUT
+    # --------------------------------------------------------
+
+    filename = request.form.get(
+        "filename",
+        ""
+    ).strip()
+
+    target_column = request.form.get(
+        "target",
+        ""
+    ).strip()
+
+    problem_type = request.form.get(
+        "problem_type",
+        ""
+    ).strip()
+
+    objective = request.form.get(
+        "objective",
+        ""
+    ).strip()
+
+    # --------------------------------------------------------
+    # VALIDATION
+    # --------------------------------------------------------
+
+    if not filename:
+
+        return (
+            "Dataset information is missing."
+        )
+
+    if not problem_type:
+
+        return (
+            "Problem type information is missing."
+        )
+
+    if not target_column and problem_type != "Clustering":
+
+        return (
+            "No target variable was provided."
+        )
+
+    if problem_type == "Clustering":
+
+        return (
+            "Clustering is not part of the supervised "
+            "model training stage."
+        )
+
+    filename = secure_filename(
+        filename
+    )
+
+    filepath = os.path.join(
+        app.config["UPLOAD_FOLDER"],
+        filename
+    )
+
+    if not os.path.exists(filepath):
+
+        return (
+            "Dataset file not found."
+        )
+
+    # --------------------------------------------------------
+    # LOAD DATASET
+    # --------------------------------------------------------
+
+    try:
+
+        df = load_dataset(filepath)
+
+    except Exception as e:
+
+        return (
+            "Unable to read dataset: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # TRAIN MODELS
+    # --------------------------------------------------------
+
+    try:
+
+        training = train_models(
+            df,
+            target_column,
+            problem_type
+        )
+
+    except Exception as e:
+
+        return (
+            "Unable to train models: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # SELECT BEST MODEL
+    # --------------------------------------------------------
+
+    best = select_best_model(
+        training["results"],
+        problem_type
+    )
+
+    # --------------------------------------------------------
+    # RESULTS PAGE
+    # --------------------------------------------------------
+
+    return render_template(
+
+        "model_results.html",
+
+        filename=filename,
+
+        target_column=target_column,
+
+        problem_type=problem_type,
+
+        objective=objective,
+
+        training=training,
+
+        best=best
     )
 
 

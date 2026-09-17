@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>TaskAware | Model Results</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1150px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .success {
+            border: 2px solid #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #f3f3f3;
+        }
+
+        .best-row {
+            background: #eef6ee;
+            font-weight: bold;
+        }
+
+        .meta {
+            color: #555;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            background: #2e7d32;
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        button {
+            padding: 11px 20px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        .confusion {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .confusion table {
+            width: auto;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <h1>
+        Model Training Results
+    </h1>
+
+    <p class="meta">
+        File: {{ filename }}
+        &nbsp;|&nbsp;
+        Target: {{ target_column }}
+        &nbsp;|&nbsp;
+        Problem Type: {{ problem_type }}
+    </p>
+
+    {% if objective %}
+    <p class="meta">
+        Objective: {{ objective }}
+    </p>
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- BEST MODEL -->
+    <!-- ================================================= -->
+
+    {% if best %}
+
+    <div class="card success">
+
+        <h2>
+            Selected Model
+            <span class="badge">
+                BEST
+            </span>
+        </h2>
+
+        <h3>
+            {{ best["name"] }}
+        </h3>
+
+        <p>
+            {{ best["reason"] }}
+        </p>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- MODEL COMPARISON -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Model Comparison
+        </h2>
+
+        <p class="meta">
+            Train size: {{ training["X_train_shape"][0] }}
+            &nbsp;|&nbsp;
+            Test size: {{ training["X_test_shape"][0] }}
+            &nbsp;|&nbsp;
+            5-fold cross-validation
+        </p>
+
+        {% if problem_type == "Classification" %}
+
+        <table>
+
+            <tr>
+
+                <th>Model</th>
+                <th>CV F1</th>
+                <th>Accuracy</th>
+                <th>Precision</th>
+                <th>Recall</th>
+                <th>F1</th>
+                <th>ROC-AUC</th>
+
+            </tr>
+
+            {% for model in best["ranked_results"] %}
+
+            <tr {% if model["name"] == best["name"] %}class="best-row"{% endif %}>
+
+                <td>{{ model["name"] }}</td>
+
+                <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
+
+                <td>{{ model["accuracy"] }}</td>
+
+                <td>{{ model["precision"] }}</td>
+
+                <td>{{ model["recall"] }}</td>
+
+                <td>{{ model["f1"] }}</td>
+
+                <td>{{ model["roc_auc"] if model["roc_auc"] is not none else "-" }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% else %}
+
+        <table>
+
+            <tr>
+
+                <th>Model</th>
+                <th>CV R2</th>
+                <th>R2</th>
+                <th>MAE</th>
+                <th>MSE</th>
+                <th>RMSE</th>
+
+            </tr>
+
+            {% for model in best["ranked_results"] %}
+
+            <tr {% if model["name"] == best["name"] %}class="best-row"{% endif %}>
+
+                <td>{{ model["name"] }}</td>
+
+                <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
+
+                <td>{{ model["r2"] }}</td>
+
+                <td>{{ model["mae"] }}</td>
+
+                <td>{{ model["mse"] }}</td>
+
+                <td>{{ model["rmse"] }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- CONFUSION MATRIX (BEST MODEL, CLASSIFICATION) -->
+    <!-- ================================================= -->
+
+    {% if problem_type == "Classification" and best %}
+
+    {% set best_full = training["results"] | selectattr("name", "equalto", best["name"]) | list %}
+    {% set best_metrics = best_full[0] if best_full else none %}
+
+    {% if best_metrics and best_metrics["confusion_matrix"] %}
+
+    <div class="card">
+
+        <h2>
+            Confusion Matrix
+        </h2>
+
+        <p class="meta">
+            Rows: actual class &nbsp;|&nbsp; Columns: predicted class
+            &nbsp;|&nbsp; Best model: {{ best["name"] }}
+        </p>
+
+        <div class="confusion">
+
+            <table>
+
+                <tr>
+                    <th>Actual \ Predicted</th>
+                    {% for label in best_metrics["labels"] %}
+                    <th>{{ label }}</th>
+                    {% endfor %}
+                </tr>
+
+                {% for row in best_metrics["confusion_matrix"] %}
+
+                <tr>
+
+                    <td>
+                        <strong>
+                            {{ best_metrics["labels"][loop.index0] }}
+                        </strong>
+                    </td>
+
+                    {% for value in row %}
+
+                    <td>
+                        {{ value }}
+                    </td>
+
+                    {% endfor %}
+
+                </tr>
+
+                {% endfor %}
+
+            </table>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- NEXT STAGE -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Model Evaluation Complete
+        </h2>
+
+        <p>
+            TaskAware can now explain the predictions of the
+            selected model
+            <strong>
+                {{ best["name"] if best else "" }}
+            </strong>.
+        </p>
+
+        <form
+            action="/explainability"
+            method="POST"
+        >
+
+            <input
+                type="hidden"
+                name="filename"
+                value="{{ filename }}"
+            >
+
+            <input
+                type="hidden"
+                name="target"
+                value="{{ target_column }}"
+            >
+
+            <input
+                type="hidden"
+                name="problem_type"
+                value="{{ problem_type }}"
+            >
+
+            <input
+                type="hidden"
+                name="objective"
+                value="{{ objective }}"
+            >
+
+            <input
+                type="hidden"
+                name="selected_model"
+                value="{{ best['name'] if best else '' }}"
+            >
+
+            <button type="submit">
+                Explain Model Predictions
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <br>
+
+    <a href="/upload">
+        ← Upload Another Dataset
+    </a>
+
+</body>
+
+</html>
