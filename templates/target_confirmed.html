@@ -2,41 +2,363 @@
 <html lang="en">
 
 <head>
+
     <meta charset="UTF-8">
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-    <title>Target Confirmed | TaskAware</title>
+    <title>
+        TaskAware | Target Confirmed
+    </title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .success {
+            border: 2px solid #333;
+        }
+
+        button {
+            padding: 10px 18px;
+            cursor: pointer;
+        }
+
+    </style>
+
 </head>
+
 
 <body>
 
-    <h1>Target Variable Confirmed</h1>
+    <h1>
+        Target Variable Confirmed
+    </h1>
 
-    <hr>
 
-    <p>The selected target variable is:</p>
+    <!-- ================================================= -->
+    <!-- TARGET -->
+    <!-- ================================================= -->
 
-    <h2>
-        {{ selected_target }}
-    </h2>
+    <div class="card success">
 
-    <p>
-        TaskAware will use this variable for further analysis
-        and problem type detection.
-    </p>
+        <h2>
+            Selected Target
+        </h2>
 
-    <hr>
+        <h3>
+            {{ selected_target }}
+        </h3>
 
-    <h3>Next Step</h3>
 
-    <p>
-        Detect whether this is a Classification or Regression problem.
-    </p>
+        {% if objective %}
+
+        <p>
+
+            <strong>
+                Objective:
+            </strong>
+
+            {{ objective }}
+
+        </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- TARGET EVIDENCE -->
+    <!-- ================================================= -->
+
+    {% if selected_info %}
+
+    <div class="card">
+
+        <h2>
+            Target Validation
+        </h2>
+
+
+        <p>
+
+            <strong>
+                Suitability:
+            </strong>
+
+            {{ selected_info["suitability"] }}
+
+        </p>
+
+
+        <p>
+
+            <strong>
+                Confidence:
+            </strong>
+
+            {{ selected_info["confidence"] }}
+
+        </p>
+
+
+        <p>
+
+            <strong>
+                Data Type:
+            </strong>
+
+            {{ selected_info["type"] }}
+
+        </p>
+
+
+        <p>
+
+            <strong>
+                Unique Values:
+            </strong>
+
+            {{ selected_info["unique_values"] }}
+
+        </p>
+
+
+        <p>
+
+            <strong>
+                Missing Values:
+            </strong>
+
+            {{ selected_info["missing_values"] }}
+
+        </p>
+
+
+        <h3>
+            Supporting Evidence
+        </h3>
+
+
+        {% if selected_info["positive_reasons"] %}
+
+        <ul>
+
+            {% for reason in selected_info["positive_reasons"] %}
+
+            <li>
+                {{ reason }}
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+        {% endif %}
+
+
+        {% if selected_info["negative_reasons"] %}
+
+        <h3>
+            Potential Concerns
+        </h3>
+
+        <ul>
+
+            {% for reason in selected_info["negative_reasons"] %}
+
+            <li>
+                {{ reason }}
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+        {% endif %}
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- PROBLEM TYPE -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Problem Type Detection
+        </h2>
+
+
+        {% if problem_type_result["success"] %}
+
+
+        <p>
+
+            <strong>
+                Target:
+            </strong>
+
+            {{ problem_type_result["target_column"] }}
+
+        </p>
+
+
+        <p>
+
+            <strong>
+                Data Type:
+            </strong>
+
+            {{ problem_type_result["data_type"] }}
+
+        </p>
+
+
+        <p>
+
+            <strong>
+                Unique Values:
+            </strong>
+
+            {{ problem_type_result["unique_values"] }}
+
+        </p>
+
+
+        <h2>
+
+            Detected Problem:
+            {{ problem_type_result["problem_type"] }}
+
+        </h2>
+
+
+        <p>
+            {{ problem_type_result["message"] }}
+        </p>
+
+
+        {% if problem_type_result["problem_type"]
+              == "Classification" %}
+
+        <hr>
+
+        <h3>
+            Next Stage
+        </h3>
+
+        <p>
+
+            TaskAware will perform detailed target-based
+            EDA and prepare the dataset for classification.
+
+        </p>
+
+
+        {% elif problem_type_result["problem_type"]
+              == "Regression" %}
+
+        <hr>
+
+        <h3>
+            Next Stage
+        </h3>
+
+        <p>
+
+            TaskAware will perform detailed target-based
+            EDA and prepare the dataset for regression.
+
+        </p>
+
+        {% endif %}
+
+
+        {% else %}
+
+
+        <h3>
+            Problem Type Detection Failed
+        </h3>
+
+        <p>
+            {{ problem_type_result["message"] }}
+        </p>
+
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- PHASE 3 PLACEHOLDER -->
+    <!-- ================================================= -->
+
+    {% if problem_type_result["success"] %}
+
+    <div class="card">
+
+        <h2>
+            Ready for Phase 3
+        </h2>
+
+        <p>
+
+            Target confirmation is complete.
+
+            The next stage of TaskAware is
+            <strong>
+                Detailed EDA
+            </strong>.
+
+        </p>
+
+        <!--
+        We will connect this button when
+        Phase 3 is implemented.
+        -->
+
+        <button
+            type="button"
+            disabled
+        >
+
+            Detailed EDA
+            (Coming in Phase 3)
+
+        </button>
+
+    </div>
+
+    {% endif %}
+
+
+    <br>
 
     <a href="/upload">
-        Upload Another Dataset
+        ← Upload Another Dataset
     </a>
 
 </body>
