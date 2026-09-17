@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>TaskAware | Detailed EDA</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1150px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .success {
+            border: 2px solid #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #f3f3f3;
+        }
+
+        .chart img {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+
+        .chart figcaption {
+            color: #555;
+            font-size: 13px;
+            margin-top: 6px;
+        }
+
+        .warning {
+            color: #9a6700;
+        }
+
+        .meta {
+            color: #555;
+        }
+
+        button {
+            padding: 11px 20px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        .row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .col {
+            flex: 1;
+            min-width: 300px;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <h1>
+        Detailed Exploratory Data Analysis
+    </h1>
+
+    <p class="meta">
+        File: {{ filename }}
+        &nbsp;|&nbsp;
+        Target: {{ target_column }}
+        &nbsp;|&nbsp;
+        Problem Type: {{ problem_type }}
+    </p>
+
+
+    {% if objective %}
+
+    <p class="meta">
+        Objective: {{ objective }}
+    </p>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- TARGET ANALYSIS -->
+    <!-- ================================================= -->
+
+    <div class="card success">
+
+        {% if problem_type == "Clustering" %}
+
+        <h2>
+            Unsupervised Analysis
+        </h2>
+
+        <p>
+            <strong>
+                Problem Type:
+            </strong>
+
+            {{ problem_type }}
+        </p>
+
+        <p>
+            No supervised target is used in clustering mode.
+            TaskAware will analyze the feature columns to
+            identify natural groups in the dataset.
+        </p>
+
+        <p>
+            <strong>
+                Numerical Features:
+            </strong>
+
+            {{ eda["numerical_columns"] | length }}
+        </p>
+
+        <p>
+            <strong>
+                Categorical Features:
+            </strong>
+
+            {{ eda["categorical_columns"] | length }}
+        </p>
+
+        {% else %}
+
+        <h2>
+            Target Variable Analysis
+        </h2>
+
+        <p>
+            <strong>
+                Target:
+            </strong>
+
+            {{ target_column }}
+        </p>
+
+        <p>
+            <strong>
+                Problem Type:
+            </strong>
+
+            {{ problem_type }}
+        </p>
+
+
+        {% if problem_type == "Classification" %}
+        {% set ta = eda["target_analysis"] %}
+
+        <p>
+            <strong>
+                Total Rows:
+            </strong>
+
+            {{ ta["total"] }}
+        </p>
+
+        <p>
+            <strong>
+                Number of Classes:
+            </strong>
+
+            {{ ta["class_count"] }}
+        </p>
+
+
+        <h3>
+            Class Distribution
+        </h3>
+
+        <table>
+
+            <tr>
+                <th>Class</th>
+                <th>Count</th>
+                <th>Percentage</th>
+            </tr>
+
+            {% for item in ta["distribution"] %}
+
+            <tr>
+
+                <td>{{ item["class"] }}</td>
+
+                <td>{{ item["count"] }}</td>
+
+                <td>{{ item["percentage"] }}%</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+
+        {% if ta["imbalance"] %}
+        {% set imb = ta["imbalance"] %}
+
+        <h3>
+            Class Balance
+        </h3>
+
+        <p>
+            <strong>
+                Majority Class:
+            </strong>
+
+            {{ imb["majority_class"] }}
+            ({{ imb["majority_count"] }} /
+            {{ imb["majority_percentage"] }}%)
+        </p>
+
+        <p>
+            <strong>
+                Minority Class:
+            </strong>
+
+            {{ imb["minority_class"] }}
+            ({{ imb["minority_count"] }} /
+            {{ imb["minority_percentage"] }}%)
+        </p>
+
+        {% if imb["imbalance_ratio"] and imb["imbalance_ratio"] >= 2 %}
+
+        <p class="warning">
+            <strong>
+                Imbalance Warning:
+            </strong>
+
+            The majority class is
+            {{ imb["imbalance_ratio"] }}x more frequent
+            than the minority class. Model evaluation
+            should rely on metrics such as F1-score,
+            precision and recall rather than accuracy
+            alone.
+        </p>
+
+        {% else %}
+
+        <p>
+            The class distribution is relatively balanced.
+        </p>
+
+        {% endif %}
+
+        {% endif %}
+
+
+        {% if ta["rare_classes"] %}
+
+        <p class="warning">
+            <strong>
+                Rare Classes:
+            </strong>
+
+            {% for item in ta["rare_classes"] %}
+            "{{ item["class"] }}"
+            ({{ item["percentage"] }}%){% if not loop.last %}, {% endif %}
+            {% endfor %}
+            account for less than 5% of the target.
+        </p>
+
+        {% endif %}
+
+        {% else %}
+        {% set ta = eda["target_analysis"] %}
+
+        <div class="row">
+
+            <div class="col">
+
+                <p>
+                    <strong>Mean:</strong>
+                    {{ ta["mean"] }}
+                </p>
+
+                <p>
+                    <strong>Median:</strong>
+                    {{ ta["median"] }}
+                </p>
+
+                <p>
+                    <strong>Std Dev:</strong>
+                    {{ ta["std"] }}
+                </p>
+
+                <p>
+                    <strong>Variance:</strong>
+                    {{ ta["variance"] }}
+                </p>
+
+            </div>
+
+            <div class="col">
+
+                <p>
+                    <strong>Min:</strong>
+                    {{ ta["min"] }}
+                </p>
+
+                <p>
+                    <strong>Max:</strong>
+                    {{ ta["max"] }}
+                </p>
+
+                <p>
+                    <strong>Range:</strong>
+                    {{ ta["range"] }}
+                </p>
+
+                <p>
+                    <strong>Q1 / Q3:</strong>
+                    {{ ta["q1"] }} / {{ ta["q3"] }}
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <p>
+            <strong>
+                Skewness:
+            </strong>
+
+            {{ ta["skewness"] }}
+
+            {% if ta["skewness"] and ta["skewness"] | abs > 1 %}
+            <span class="warning">
+                (noticeably skewed)
+            </span>
+            {% endif %}
+        </p>
+
+
+        <p>
+            <strong>
+                Outliers (IQR rule):
+            </strong>
+
+            {{ ta["outliers_count"] }}
+
+            {% if ta["outlier_bounds"]["lower"] is not none %}
+
+            (outside {{ ta["outlier_bounds"]["lower"] }}
+            to {{ ta["outlier_bounds"]["upper"] }})
+
+            {% endif %}
+        </p>
+
+        {% endif %}
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- CHARTS -->
+    <!-- ================================================= -->
+
+    {% if eda["charts"] %}
+
+    <div class="card">
+
+        <h2>
+            Charts
+        </h2>
+
+        <div class="row">
+
+            {% for chart in eda["charts"] %}
+
+            <div class="col chart">
+
+                <h3>
+                    {{ chart["name"] }}
+                </h3>
+
+                <img
+                    src="/charts/{{ chart['file'] }}"
+                    alt="{{ chart['name'] }}"
+                >
+
+                <figcaption>
+                    {{ chart["caption"] }}
+                </figcaption>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- FEATURE TARGET RELATIONSHIP -->
+    <!-- ================================================= -->
+
+    {% if problem_type == "Classification"
+          and eda["numerical_analysis"] %}
+
+    <div class="card">
+
+        <h2>
+            Feature vs Target Relationship
+        </h2>
+
+        <p>
+            Average feature value for each target class.
+            Large differences between classes suggest the
+            feature may help predict the target.
+        </p>
+
+        {% for column, item in eda["numerical_analysis"].items() %}
+
+        {% if item["group_means"] %}
+
+        <h3>
+            {{ column }}
+        </h3>
+
+        <table>
+
+            <tr>
+                <th>Class</th>
+                <th>Mean Value</th>
+            </tr>
+
+            {% for gm in item["group_means"] %}
+
+            <tr>
+
+                <td>{{ gm["class"] }}</td>
+
+                <td>{{ gm["mean"] }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% endif %}
+
+        {% endfor %}
+
+    </div>
+
+    {% endif %}
+
+
+    {% if problem_type == "Regression"
+          and eda["numerical_analysis"] %}
+
+    <div class="card">
+
+        <h2>
+            Feature vs Target Correlation
+        </h2>
+
+        <p>
+            Correlation between each numerical feature
+            and the target variable. Values closer to
+            1 or -1 indicate a stronger linear relationship.
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Feature</th>
+                <th>Correlation with Target</th>
+            </tr>
+
+            {% for column, item in eda["numerical_analysis"].items() %}
+
+            {% if item["correlation_with_target"] is not none %}
+
+            <tr>
+
+                <td>{{ column }}</td>
+
+                <td>{{ item["correlation_with_target"] }}</td>
+
+            </tr>
+
+            {% endif %}
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- NUMERICAL FEATURES -->
+    <!-- ================================================= -->
+
+    {% if eda["numerical_analysis"] %}
+
+    <div class="card">
+
+        <h2>
+            Numerical Feature Analysis
+        </h2>
+
+        <table>
+
+            <tr>
+
+                <th>Feature</th>
+                <th>Mean</th>
+                <th>Median</th>
+                <th>Std</th>
+                <th>Min</th>
+                <th>Max</th>
+                <th>Skew</th>
+                <th>Missing</th>
+                <th>Outliers</th>
+
+            </tr>
+
+            {% for column, item in eda["numerical_analysis"].items() %}
+
+            <tr>
+
+                <td>{{ column }}</td>
+                <td>{{ item["mean"] }}</td>
+                <td>{{ item["median"] }}</td>
+                <td>{{ item["std"] }}</td>
+                <td>{{ item["min"] }}</td>
+                <td>{{ item["max"] }}</td>
+                <td>{{ item["skewness"] }}</td>
+                <td>{{ item["missing"] }}</td>
+                <td>{{ item["outliers_count"] }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- CATEGORICAL FEATURES -->
+    <!-- ================================================= -->
+
+    {% if eda["categorical_analysis"] %}
+
+    <div class="card">
+
+        <h2>
+            Categorical Feature Analysis
+        </h2>
+
+        {% for column, item in eda["categorical_analysis"].items() %}
+
+        <h3>
+            {{ column }}
+        </h3>
+
+        <p class="meta">
+            {{ item["unique_count"] }} unique categories,
+            {{ item["missing"] }} missing values
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Category</th>
+                <th>Count</th>
+                <th>Percentage</th>
+            </tr>
+
+            {% for cat in item["top_categories"] %}
+
+            <tr>
+
+                <td>{{ cat["category"] }}</td>
+
+                <td>{{ cat["count"] }}</td>
+
+                <td>{{ cat["percentage"] }}%</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% if item["rare_categories"] %}
+
+        <p class="warning">
+            Rare categories (&lt;5%):
+            {{ item["rare_categories"] | join(", ") }}
+        </p>
+
+        {% endif %}
+
+        {% endfor %}
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- CORRELATION -->
+    <!-- ================================================= -->
+
+    {% if eda["correlation"] %}
+
+    <div class="card">
+
+        <h2>
+            Feature Correlation Highlights
+        </h2>
+
+        <p>
+            Strongly correlated feature pairs may carry
+            redundant information.
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Feature A</th>
+                <th>Feature B</th>
+                <th>Correlation</th>
+            </tr>
+
+            {% for item in eda["correlation"] %}
+
+            {% if item["correlation"] | abs >= 0.5 %}
+
+            <tr>
+
+                <td>{{ item["feature_a"] }}</td>
+
+                <td>{{ item["feature_b"] }}</td>
+
+                <td>{{ item["correlation"] }}</td>
+
+            </tr>
+
+            {% endif %}
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- ID COLUMNS -->
+    <!-- ================================================= -->
+
+    {% if eda["id_columns"] %}
+
+    <div class="card">
+
+        <h2>
+            Excluded Identifier Columns
+        </h2>
+
+        <p>
+            The following columns were treated as identifiers
+            and excluded from feature analysis:
+        </p>
+
+        <ul>
+
+            {% for column in eda["id_columns"] %}
+
+            <li>
+                {{ column }}
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- NEXT STAGE -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Data Understanding Complete
+        </h2>
+
+        <p>
+            Detailed EDA is complete. TaskAware can now
+            prepare the dataset for
+            <strong>
+                {{ problem_type }}
+            </strong>.
+        </p>
+
+        <form
+            action="/preprocessing"
+            method="POST"
+        >
+
+            <input
+                type="hidden"
+                name="filename"
+                value="{{ filename }}"
+            >
+
+            <input
+                type="hidden"
+                name="target"
+                value="{{ target_column }}"
+            >
+
+            <input
+                type="hidden"
+                name="problem_type"
+                value="{{ problem_type }}"
+            >
+
+            <input
+                type="hidden"
+                name="objective"
+                value="{{ objective }}"
+            >
+
+            <button type="submit">
+                Proceed to Data Preprocessing
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <br>
+
+    <a href="/upload">
+        ← Upload Another Dataset
+    </a>
+
+</body>
+
+</html>

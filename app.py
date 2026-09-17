@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, send_from_directory
 import os
 import pandas as pd
 from werkzeug.utils import secure_filename
@@ -11,6 +11,7 @@ from modules.data_validator import validate_dataset
 from modules.initial_eda import perform_initial_eda
 from modules.objective_target import analyze_target_candidates
 from modules.problem_type_detector import detect_problem_type
+from modules.detailed_eda import perform_detailed_eda
 
 
 app = Flask(__name__)
@@ -22,6 +23,8 @@ app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
 
+CHARTS_FOLDER = "results/charts"
+
 ALLOWED_EXTENSIONS = {
     "csv",
     "xlsx"
@@ -29,8 +32,15 @@ ALLOWED_EXTENSIONS = {
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+app.config["CHARTS_FOLDER"] = CHARTS_FOLDER
+
 os.makedirs(
     UPLOAD_FOLDER,
+    exist_ok=True
+)
+
+os.makedirs(
+    CHARTS_FOLDER,
     exist_ok=True
 )
 
@@ -920,6 +930,187 @@ def confirm_target():
         objective=objective,
 
         selected_info=selected_info
+    )
+
+
+# ============================================================
+# DETAILED EDA
+# ============================================================
+
+@app.route(
+    "/detailed-eda",
+    methods=["POST"]
+)
+def detailed_eda():
+
+    # --------------------------------------------------------
+    # INPUT
+    # --------------------------------------------------------
+
+    filename = request.form.get(
+        "filename",
+        ""
+    ).strip()
+
+    target_column = request.form.get(
+        "target",
+        ""
+    ).strip()
+
+    problem_type = request.form.get(
+        "problem_type",
+        ""
+    ).strip()
+
+    objective = request.form.get(
+        "objective",
+        ""
+    ).strip()
+
+    # --------------------------------------------------------
+    # VALIDATION
+    # --------------------------------------------------------
+
+    if not filename:
+
+        return (
+            "Dataset information is missing."
+        )
+
+    if not problem_type:
+
+        return (
+            "Problem type information is missing."
+        )
+
+    # --------------------------------------------------------
+    # CLUSTERING: TARGET IS NOT REQUIRED
+    # --------------------------------------------------------
+
+    if not target_column and problem_type != "Clustering":
+
+        return (
+            "No target variable was provided."
+        )
+
+    filename = secure_filename(
+        filename
+    )
+
+    filepath = os.path.join(
+        app.config["UPLOAD_FOLDER"],
+        filename
+    )
+
+    if not os.path.exists(filepath):
+
+        return (
+            "Dataset file not found."
+        )
+
+    # --------------------------------------------------------
+    # LOAD DATASET
+    # --------------------------------------------------------
+
+    try:
+
+        df = load_dataset(filepath)
+
+    except Exception as e:
+
+        return (
+            "Unable to read dataset: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # CHART OUTPUT PATH
+    # --------------------------------------------------------
+
+    chart_base = os.path.splitext(
+        filename
+    )[0]
+
+    if target_column:
+
+        chart_base = (
+            f"{chart_base}_{target_column}"
+            .replace(" ", "_")
+            .replace("/", "_")
+            .replace("\\", "_")
+        )
+
+    else:
+
+        chart_base = (
+            f"{chart_base}_clustering"
+            .replace(" ", "_")
+            .replace("/", "_")
+            .replace("\\", "_")
+        )
+
+    # --------------------------------------------------------
+    # PERFORM DETAILED EDA
+    # --------------------------------------------------------
+
+    try:
+
+        eda_results = perform_detailed_eda(
+
+            df,
+
+            target_column=target_column,
+
+            problem_type=problem_type,
+
+            charts_dir=app.config[
+                "CHARTS_FOLDER"
+            ],
+
+            chart_id=chart_base
+        )
+
+    except Exception as e:
+
+        return (
+            "Unable to perform detailed EDA: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # RESULTS PAGE
+    # --------------------------------------------------------
+
+    return render_template(
+
+        "detailed_eda.html",
+
+        filename=filename,
+
+        target_column=target_column,
+
+        problem_type=problem_type,
+
+        objective=objective,
+
+        eda=eda_results,
+
+        charts_folder=app.config[
+            "CHARTS_FOLDER"
+        ]
+    )
+
+
+# ============================================================
+# SERVE CHART IMAGES
+# ============================================================
+
+@app.route("/charts/<path:chart_filename>")
+def serve_chart(chart_filename):
+
+    return send_from_directory(
+        app.config["CHARTS_FOLDER"],
+        chart_filename
     )
 
 

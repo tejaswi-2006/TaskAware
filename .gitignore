@@ -15,5 +15,8 @@ uploads/*
 # Database filesgit status
 instance/
 
+# Generated analysis artifacts
+results/
+
 # VS Code settings
 .vscode/

@@ -597,9 +597,46 @@
         </p>
 
         <p>
-            Clustering will be available in the
-            unsupervised analysis stage.
+            TaskAware can discover natural groups in the
+            data without requiring a target label.
         </p>
+
+        <form
+            action="/detailed-eda"
+            method="POST"
+        >
+
+            <input
+                type="hidden"
+                name="filename"
+                value="{{ filename }}"
+            >
+
+            <input
+                type="hidden"
+                name="target"
+                value=""
+            >
+
+            <input
+                type="hidden"
+                name="problem_type"
+                value="Clustering"
+            >
+
+            <input
+                type="hidden"
+                name="objective"
+                value="{{ objective }}"
+            >
+
+            <button type="submit">
+
+                Explore Clusters
+
+            </button>
+
+        </form>
 
     </div>
 

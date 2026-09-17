@@ -335,20 +335,42 @@
 
         </p>
 
-        <!--
-        We will connect this button when
-        Phase 3 is implemented.
-        -->
-
-        <button
-            type="button"
-            disabled
+        <form
+            action="/detailed-eda"
+            method="POST"
         >
 
-            Detailed EDA
-            (Coming in Phase 3)
+            <input
+                type="hidden"
+                name="filename"
+                value="{{ filename }}"
+            >
 
-        </button>
+            <input
+                type="hidden"
+                name="target"
+                value="{{ selected_target }}"
+            >
+
+            <input
+                type="hidden"
+                name="problem_type"
+                value="{{ problem_type_result['problem_type'] }}"
+            >
+
+            <input
+                type="hidden"
+                name="objective"
+                value="{{ objective }}"
+            >
+
+            <button type="submit">
+
+                Run Detailed EDA
+
+            </button>
+
+        </form>
 
     </div>
 
