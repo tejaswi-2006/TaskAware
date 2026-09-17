@@ -16,6 +16,7 @@ from modules.preprocessing import prepare_preprocessing
 from modules.feature_selection import perform_feature_selection
 from modules.model_trainer import train_models
 from modules.model_selector import select_best_model
+from modules.clustering import perform_clustering
 
 
 app = Flask(__name__)
@@ -1398,6 +1399,125 @@ def model_training():
         training=training,
 
         best=best
+    )
+
+
+# ============================================================
+# CLUSTERING
+# ============================================================
+
+@app.route(
+    "/clustering",
+    methods=["POST"]
+)
+def clustering():
+
+    # --------------------------------------------------------
+    # INPUT
+    # --------------------------------------------------------
+
+    filename = request.form.get(
+        "filename",
+        ""
+    ).strip()
+
+    objective = request.form.get(
+        "objective",
+        ""
+    ).strip()
+
+    # --------------------------------------------------------
+    # VALIDATION
+    # --------------------------------------------------------
+
+    if not filename:
+
+        return (
+            "Dataset information is missing."
+        )
+
+    filename = secure_filename(
+        filename
+    )
+
+    filepath = os.path.join(
+        app.config["UPLOAD_FOLDER"],
+        filename
+    )
+
+    if not os.path.exists(filepath):
+
+        return (
+            "Dataset file not found."
+        )
+
+    # --------------------------------------------------------
+    # LOAD DATASET
+    # --------------------------------------------------------
+
+    try:
+
+        df = load_dataset(filepath)
+
+    except Exception as e:
+
+        return (
+            "Unable to read dataset: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # CHART OUTPUT PATH
+    # --------------------------------------------------------
+
+    chart_base = (
+        os.path.splitext(
+            filename
+        )[0]
+        .replace(" ", "_")
+        .replace("/", "_")
+        .replace("\\", "_")
+    )
+
+    # --------------------------------------------------------
+    # PERFORM CLUSTERING
+    # --------------------------------------------------------
+
+    try:
+
+        clustering_results = perform_clustering(
+            df,
+            objective=(
+                objective
+                if objective
+                else None
+            ),
+            charts_dir=app.config[
+                "CHARTS_FOLDER"
+            ],
+            chart_id=chart_base
+        )
+
+    except Exception as e:
+
+        return (
+            "Unable to perform clustering: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # RESULTS PAGE
+    # --------------------------------------------------------
+
+    return render_template(
+
+        "clustering_results.html",
+
+        filename=filename,
+
+        objective=objective,
+
+        result=clustering_results
     )
 
 

@@ -509,6 +509,33 @@
             <strong>{{ problem_type }}</strong>.
         </p>
 
+        {% if problem_type == "Clustering" %}
+
+        <form
+            action="/clustering"
+            method="POST"
+        >
+
+            <input
+                type="hidden"
+                name="filename"
+                value="{{ filename }}"
+            >
+
+            <input
+                type="hidden"
+                name="objective"
+                value="{{ objective }}"
+            >
+
+            <button type="submit">
+                Proceed to Cluster Analysis
+            </button>
+
+        </form>
+
+        {% else %}
+
         <form
             action="/model-training"
             method="POST"
@@ -543,6 +570,8 @@
             </button>
 
         </form>
+
+        {% endif %}
 
     </div>
 
