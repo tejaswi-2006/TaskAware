@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, send_from_directory, redirect, url_for, flash, session
 import os
 import pandas as pd
+import numpy as np
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -9,14 +10,16 @@ from functools import wraps
 # PROJECT MODULES
 # ============================================================
 
+from modules.data_loader import load_dataset, allowed_file
 from modules.data_validator import validate_dataset
 from modules.initial_eda import perform_initial_eda
 from modules.objective_target import analyze_target_candidates
 from modules.problem_type_detector import detect_problem_type
+from modules.decision_engine import decide_route
 from modules.detailed_eda import perform_detailed_eda
 from modules.preprocessing import prepare_preprocessing
 from modules.feature_selection import perform_feature_selection
-from modules.model_trainer import train_models, train_named_model
+from modules.model_trainer import train_models, train_named_model, TaskAwareTrainingError
 from modules.model_selector import select_best_model
 from modules.clustering import perform_clustering
 from modules.explainability import perform_explainability
@@ -77,50 +80,6 @@ app.secret_key = os.environ.get(
 )
 
 init_db()
-
-
-# ============================================================
-# FILE TYPE CHECK
-# ============================================================
-
-def allowed_file(filename):
-    """
-    Check whether the uploaded file is CSV or XLSX.
-    """
-
-    return (
-        bool(filename)
-        and "." in filename
-        and filename.rsplit(".", 1)[1].lower()
-        in ALLOWED_EXTENSIONS
-    )
-
-
-# ============================================================
-# DATASET LOADER
-# ============================================================
-
-def load_dataset(filepath):
-    """
-    Load CSV or XLSX dataset.
-    """
-
-    extension = filepath.rsplit(
-        ".",
-        1
-    )[1].lower()
-
-    if extension == "csv":
-
-        return pd.read_csv(filepath)
-
-    elif extension == "xlsx":
-
-        return pd.read_excel(filepath)
-
-    raise ValueError(
-        "Unsupported file type."
-    )
 
 
 # ============================================================
@@ -2342,11 +2301,6 @@ def ai_explanation():
                 )
 
                 # ----- Metrics -----
-                from modules.model_trainer import (
-                    get_classification_models,
-                    get_regression_models
-                )
-
                 from sklearn.metrics import (
                     accuracy_score,
                     f1_score,
@@ -2433,10 +2387,11 @@ def ai_explanation():
                         ),
                         "rmse": round(
                             float(
-                                mean_squared_error(
-                                    y_true,
-                                    y_pred,
-                                    squared=False
+                                np.sqrt(
+                                    mean_squared_error(
+                                        y_true,
+                                        y_pred
+                                    )
                                 )
                             ),
                             3

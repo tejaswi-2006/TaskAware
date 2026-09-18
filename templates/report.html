@@ -218,6 +218,93 @@
                 </td>
             </tr>
 
+            <tr>
+                <td><strong>Text Columns</strong></td>
+                <td>
+                    {{ report["data_quality"]["text_columns"] | join(", ") if report["data_quality"]["text_columns"] else "None" }}
+                </td>
+            </tr>
+
+            <tr>
+                <td><strong>Date Columns</strong></td>
+                <td>
+                    {{ report["data_quality"]["date_columns"] | join(", ") if report["data_quality"]["date_columns"] else "None" }}
+                </td>
+            </tr>
+
+            <tr>
+                <td><strong>Unsupported Columns</strong></td>
+                <td>
+                    {{ report["data_quality"]["unsupported_columns"] | join(", ") if report["data_quality"]["unsupported_columns"] else "None" }}
+                </td>
+            </tr>
+
+        </table>
+
+    </div>
+
+
+    {% if report["warnings"] %}
+
+    <div class="card">
+
+        <h3>
+            Warnings
+        </h3>
+
+        <ul>
+
+            {% for warning in report["warnings"] %}
+
+            <li>
+                {{ warning }}
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- 2b. DETECTED COLUMN ROLES -->
+    <!-- ================================================= -->
+
+    <h2>
+        2b. Detected Column Roles
+    </h2>
+
+    <div class="card">
+
+        <table>
+
+            <tr>
+                <th>Column</th>
+                <th>Role</th>
+                <th>Dtype</th>
+                <th>Unique</th>
+                <th>Missing</th>
+                <th>Target</th>
+            </tr>
+
+            {% for record in report["column_roles"] %}
+
+            <tr>
+
+                <td>{{ record["column"] }}</td>
+                <td>{{ record["role"] }}</td>
+                <td>{{ record["dtype"] }}</td>
+                <td>{{ record["unique_count"] }}</td>
+                <td>{{ record["missing_count"] }}</td>
+                <td>{{ "yes" if record["is_target"] else "" }}</td>
+
+            </tr>
+
+            {% endfor %}
+
         </table>
 
     </div>

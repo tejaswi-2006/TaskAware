@@ -7,71 +7,24 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from modules.schema_analyzer import analyze_schema
+
 
 # ============================================================
 # BASIC HELPERS
 # ============================================================
 
-def _detect_id_columns(df):
+def _detect_id_columns(df, schema=None):
     """
-    Detect identifier-like columns so they are excluded
-    from feature analysis.
-
-    A column is treated as an identifier when either:
-    - its name clearly suggests an identifier, or
-    - it is NOT a continuous numeric feature and almost
-      every value is unique (e.g. an object/string key).
-
-    Continuous numeric columns with many unique values are
-    NOT treated as identifiers, because features such as
-    income, spending or timestamps legitimately have
-    near-unique values.
+    Detect identifier-like columns using the central schema
+    analyzer so that text, date and unsupported columns are
+    never misclassified as identifiers.
     """
 
-    id_columns = []
+    if schema is None:
+        schema = analyze_schema(df)
 
-    for column in df.columns:
-
-        name = str(column).lower().replace("_", " ")
-
-        id_words = [
-            "id",
-            "identifier",
-            "customer id",
-            "student id",
-            "user id",
-            "record id",
-            "roll number",
-            "serial number"
-        ]
-
-        name_suggests_id = any(
-            word in name
-            for word in id_words
-        )
-
-        unique_ratio = (
-            df[column].nunique(
-                dropna=True
-            ) / len(df)
-        )
-
-        is_numeric = pd.api.types.is_numeric_dtype(
-            df[column]
-        )
-
-        # Name evidence is decisive
-        if name_suggests_id:
-            id_columns.append(column)
-
-        # Statistical evidence: near-unique non-numeric key
-        elif (
-            unique_ratio >= 0.95
-            and not is_numeric
-        ):
-            id_columns.append(column)
-
-    return list(set(id_columns))
+    return list(schema["id_columns"])
 
 
 def _safe_skew(series):
@@ -391,6 +344,122 @@ def _analyze_categorical_features(
 
 
 # ============================================================
+# TEXT FEATURE ANALYSIS
+# ============================================================
+
+def _analyze_text_features(
+    df,
+    text_columns,
+    target_column=None
+):
+    """
+    Summary statistics for natural-language columns.
+    """
+
+    analysis = {}
+
+    for column in text_columns:
+
+        series = df[column].dropna().astype(str)
+
+        lengths = series.str.len()
+
+        word_counts = series.str.split().str.len()
+
+        item = {
+            "column": column,
+            "missing": int(df[column].isnull().sum()),
+            "unique_count": int(series.nunique()),
+            "avg_length": round(
+                float(lengths.mean()),
+                2
+            ),
+            "min_length": int(lengths.min()),
+            "max_length": int(lengths.max()),
+            "avg_words": round(
+                float(word_counts.mean()),
+                2
+            ),
+        }
+
+        if target_column is not None:
+
+            # Average word count by target class
+            target = df[target_column]
+
+            combined = pd.DataFrame({
+                "text": series,
+                "target": target.loc[series.index],
+            }).dropna()
+
+            if len(combined) > 0 and combined["target"].nunique() >= 1:
+
+                grouped = (
+                    combined.groupby("target")["text"]
+                    .apply(
+                        lambda s: round(
+                            float(
+                                s.str.split().str.len().mean()
+                            ),
+                            2
+                        )
+                    )
+                )
+
+                item["avg_words_by_target"] = [
+                    {"class": str(k), "avg_words": float(v)}
+                    for k, v in grouped.items()
+                ]
+
+        analysis[column] = item
+
+    return analysis
+
+
+# ============================================================
+# DATE FEATURE ANALYSIS
+# ============================================================
+
+def _analyze_date_features(df, date_columns):
+    """
+    Summary statistics for date/datetime columns.
+    """
+
+    analysis = {}
+
+    for column in date_columns:
+
+        parsed = pd.to_datetime(
+            df[column],
+            errors="coerce",
+            format="mixed",
+        )
+
+        valid = parsed.dropna()
+
+        analysis[column] = {
+            "column": column,
+            "missing": int(parsed.isnull().sum()),
+            "min": str(valid.min()) if len(valid) else None,
+            "max": str(valid.max()) if len(valid) else None,
+            "range_days": (
+                int((valid.max() - valid.min()).days)
+                if len(valid) >= 2
+                else None
+            ),
+            "unique_count": int(parsed.nunique()),
+            "is_time_ordered": (
+                len(valid) >= 2
+                and bool(
+                    (valid.diff().dropna() >= pd.Timedelta(0)).all()
+                )
+            ),
+        }
+
+    return analysis
+
+
+# ============================================================
 # CORRELATION
 # ============================================================
 
@@ -628,42 +697,22 @@ def perform_detailed_eda(
     if problem_type == "Clustering":
         target_column = None
 
-    id_columns = _detect_id_columns(df)
+    schema = analyze_schema(
+        df,
+        target_column=target_column,
+    )
 
-    # Constant columns carry no predictive information
-    constant_columns = [
-        column
-        for column in df.columns
-        if column not in id_columns
-        and column != target_column
-        and df[column].nunique(
-            dropna=True
-        ) <= 1
-    ]
+    id_columns = list(schema["id_columns"])
+    constant_columns = list(schema["constant_columns"])
+    unsupported_columns = list(schema["unsupported_columns"])
 
-    feature_columns = [
-        column
-        for column in df.columns
-        if column not in id_columns
-        and column not in constant_columns
-        and column != target_column
-    ]
+    feature_columns = list(schema["feature_columns"])
 
-    numerical_columns = [
-        column
-        for column in feature_columns
-        if pd.api.types.is_numeric_dtype(
-            df[column]
-        )
-    ]
-
-    categorical_columns = [
-        column
-        for column in feature_columns
-        if not pd.api.types.is_numeric_dtype(
-            df[column]
-        )
-    ]
+    numerical_columns = list(schema["numerical_columns"])
+    categorical_columns = list(schema["categorical_columns"])
+    boolean_columns = list(schema["boolean_columns"])
+    text_columns = list(schema["text_columns"])
+    date_columns = list(schema["date_columns"])
 
     # ------------------------------------------------
     # TARGET ANALYSIS
@@ -706,6 +755,17 @@ def perform_detailed_eda(
         df,
         categorical_columns,
         target_column=target_column
+    )
+
+    text_analysis = _analyze_text_features(
+        df,
+        text_columns,
+        target_column=target_column
+    )
+
+    date_analysis = _analyze_date_features(
+        df,
+        date_columns
     )
 
     correlation = _analyze_correlation(
@@ -792,12 +852,19 @@ def perform_detailed_eda(
         "problem_type": problem_type,
         "id_columns": id_columns,
         "constant_columns": constant_columns,
+        "unsupported_columns": unsupported_columns,
         "feature_columns": feature_columns,
         "numerical_columns": numerical_columns,
         "categorical_columns": categorical_columns,
+        "boolean_columns": boolean_columns,
+        "text_columns": text_columns,
+        "date_columns": date_columns,
+        "schema": schema,
         "target_analysis": target_analysis,
         "numerical_analysis": numerical_analysis,
         "categorical_analysis": categorical_analysis,
+        "text_analysis": text_analysis,
+        "date_analysis": date_analysis,
         "correlation": correlation,
         "charts": charts
     }

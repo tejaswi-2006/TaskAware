@@ -157,6 +157,79 @@
 
         {% endif %}
 
+
+        <h3>Text Columns</h3>
+
+        {% if validation_results["text_columns"] %}
+
+        <ul>
+            {% for column in validation_results["text_columns"] %}
+            <li>{{ column }}</li>
+            {% endfor %}
+        </ul>
+
+        <p class="note">
+            Text columns will be converted to numerical
+            features using TF-IDF.
+        </p>
+
+        {% else %}
+
+        <p class="note">
+            No text columns found.
+        </p>
+
+        {% endif %}
+
+
+        <h3>Date Columns</h3>
+
+        {% if validation_results["date_columns"] %}
+
+        <ul>
+            {% for column in validation_results["date_columns"] %}
+            <li>{{ column }}</li>
+            {% endfor %}
+        </ul>
+
+        <p class="note">
+            Date columns will be converted to year, month,
+            day and related components.
+        </p>
+
+        {% else %}
+
+        <p class="note">
+            No date columns found.
+        </p>
+
+        {% endif %}
+
+
+        <h3>Unsupported Columns</h3>
+
+        {% if validation_results["unsupported_columns"] %}
+
+        <ul>
+            {% for column in validation_results["unsupported_columns"] %}
+            <li>{{ column }}</li>
+            {% endfor %}
+        </ul>
+
+        <p class="note">
+            These columns contain unsupported object types
+            (lists, dicts, bytes, etc.) and are excluded from
+            the analysis.
+        </p>
+
+        {% else %}
+
+        <p class="note">
+            No unsupported columns found.
+        </p>
+
+        {% endif %}
+
     </div>
 
 
@@ -171,6 +244,7 @@
             <tr>
                 <th>Column</th>
                 <th>Data Type</th>
+                <th>Role</th>
                 <th>Unique Values</th>
                 <th>Missing Values</th>
             </tr>
@@ -182,6 +256,10 @@
                 <td>{{ column }}</td>
 
                 <td>{{ data_types[column] }}</td>
+
+                <td>
+                    {{ eda_results["column_roles"].get(column, "-") }}
+                </td>
 
                 <td>
                     {{ eda_results["unique_values"].get(column, 0) }}

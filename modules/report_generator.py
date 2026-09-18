@@ -29,8 +29,18 @@ def collect_report_data(
     from modules.data_validator import validate_dataset
     from modules.detailed_eda import perform_detailed_eda
     from modules.preprocessing import prepare_preprocessing
+    from modules.schema_analyzer import analyze_schema
 
     rows, columns = df.shape
+
+    schema = analyze_schema(
+        df,
+        target_column=(
+            target_column
+            if problem_type != "Clustering"
+            else None
+        ),
+    )
 
     data_quality = {
         "rows": rows,
@@ -50,7 +60,14 @@ def collect_report_data(
         )
     }
 
-    validation = validate_dataset(df)
+    validation = validate_dataset(
+        df,
+        target_column=(
+            target_column
+            if problem_type != "Clustering"
+            else None
+        ),
+    )
 
     data_quality["constant_columns"] = (
         validation.get("constant_columns", [])
@@ -58,6 +75,18 @@ def collect_report_data(
 
     data_quality["possible_id_columns"] = (
         validation.get("possible_id_columns", [])
+    )
+
+    data_quality["unsupported_columns"] = (
+        validation.get("unsupported_columns", [])
+    )
+
+    data_quality["text_columns"] = (
+        validation.get("text_columns", [])
+    )
+
+    data_quality["date_columns"] = (
+        validation.get("date_columns", [])
     )
 
     # ------------------------------------------------
@@ -89,6 +118,8 @@ def collect_report_data(
     # ------------------------------------------------
 
     model_results = None
+
+    used_chronological_split = False
 
     if problem_type == "Clustering":
 
@@ -125,7 +156,10 @@ def collect_report_data(
             "profiles": cluster_result.get("profiles"),
             "evaluations": cluster_result.get(
                 "evaluations"
-            )
+            ),
+            "representation_note": (
+                cluster_result.get("representation_note")
+            ),
         }
 
     else:
@@ -144,6 +178,10 @@ def collect_report_data(
             problem_type
         )
 
+        used_chronological_split = (
+            training.get("used_chronological_split", False)
+        )
+
         model_results = {
             "problem_type": problem_type,
             "target_column": target_column,
@@ -151,13 +189,67 @@ def collect_report_data(
             "results": training["results"],
             "n_classes": training.get("n_classes"),
             "X_train_shape": training["X_train_shape"],
-            "X_test_shape": training["X_test_shape"]
+            "X_test_shape": training["X_test_shape"],
+            "used_chronological_split": (
+                used_chronological_split
+            ),
         }
 
         if selected_model and not best:
             model_results["best_model"] = {
                 "name": selected_model
             }
+
+    # ------------------------------------------------
+    # WARNINGS
+    # ------------------------------------------------
+
+    warnings = []
+
+    if schema["is_time_series"] and schema["time_column"]:
+
+        warnings.append(
+            f"The dataset contains a date column "
+            f"('{schema['time_column']}'). "
+            "TaskAware applied a chronological split when "
+            "training so the model never sees future data. "
+            "Forecasting support is limited; results are "
+            "best treated as time-aware validation rather "
+            "than full production forecasting."
+        )
+
+    if schema["unsupported_columns"]:
+
+        warnings.append(
+            f"The following columns contain unsupported "
+            "types and were excluded from the analysis: "
+            f"{', '.join(schema['unsupported_columns'])}"
+        )
+
+    if schema["constant_columns"]:
+
+        warnings.append(
+            f"The following constant columns carried no "
+            "information and were excluded: "
+            f"{', '.join(schema['constant_columns'])}"
+        )
+
+    # ------------------------------------------------
+    # COLUMN ROLES
+    # ------------------------------------------------
+
+    column_roles = [
+        {
+            "column": record["column"],
+            "role": record["role"],
+            "dtype": record["dtype"],
+            "unique_count": record["unique_count"],
+            "missing_count": record["missing_count"],
+            "reasons": record["reasons"],
+            "is_target": record["is_target"],
+        }
+        for record in schema["columns"]
+    ]
 
     # ------------------------------------------------
     # REPORT
@@ -179,6 +271,14 @@ def collect_report_data(
         "prep": prep,
         "model_results": model_results,
         "explanation": explanation,
+        "schema": schema,
+        "column_roles": column_roles,
+        "warnings": warnings,
+        "random_seed": 42,
+        "software": {
+            "module": "TaskAware",
+            "version": "1.0.0",
+        },
         "generated_at": datetime.now().strftime(
             "%Y-%m-%d %H:%M:%S"
         ),

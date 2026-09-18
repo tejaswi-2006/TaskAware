@@ -7,16 +7,19 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.metrics import (
     silhouette_score,
     davies_bouldin_score,
-    calinski_harabasz_score
+    calinski_harabasz_score,
 )
 
-from modules.preprocessing import (
-    build_preprocessing_pipeline,
-    identify_column_roles
+from modules.schema_analyzer import analyze_schema
+from modules.preprocessing import build_preprocessing_pipeline
+from modules.cluster_profiler import (
+    build_cluster_profiles,
+    find_distinguishing_features,
+    representative_text_terms,
 )
 
 
@@ -131,176 +134,6 @@ def select_best_k(evaluations):
     )
 
     return best
-
-
-# ============================================================
-# CLUSTER PROFILES
-# ============================================================
-
-def build_cluster_profiles(
-    df,
-    feature_columns,
-    labels,
-    n_clusters
-):
-    """
-    Build interpretable profiles for each cluster using the
-    original feature columns.
-
-    Numerical features: mean and median.
-    Categorical features: dominant category and percentage.
-
-    IMPORTANT: profiles describe observed differences in the
-    data. They are not ground-truth labels.
-    """
-
-    if df is None or len(df) == 0:
-        return []
-
-    working = df[feature_columns].copy()
-
-    working["__cluster__"] = labels
-
-    profiles = []
-
-    for cluster in range(n_clusters):
-
-        subset = working[
-            working["__cluster__"] == cluster
-        ]
-
-        if len(subset) == 0:
-            continue
-
-        features = []
-
-        for column in feature_columns:
-
-            series = subset[column].dropna()
-
-            if len(series) == 0:
-                continue
-
-            if pd.api.types.is_numeric_dtype(series):
-
-                features.append({
-                    "column": column,
-                    "type": "numerical",
-                    "mean": round(
-                        float(series.mean()),
-                        3
-                    ),
-                    "median": round(
-                        float(series.median()),
-                        3
-                    )
-                })
-
-            else:
-
-                counts = series.value_counts()
-
-                dominant = counts.index[0]
-
-                features.append({
-                    "column": column,
-                    "type": "categorical",
-                    "dominant": str(dominant),
-                    "dominant_ratio": round(
-                        float(
-                            counts.iloc[0] / len(series)
-                        ),
-                        3
-                    )
-                })
-
-        profiles.append({
-            "cluster": int(cluster),
-            "size": int(len(subset)),
-            "size_percentage": round(
-                len(subset) / len(working) * 100,
-                2
-            ),
-            "features": features
-        })
-
-    return profiles
-
-
-# ============================================================
-# CLUSTER DIFFERENCES
-# ============================================================
-
-def find_distinguishing_features(
-    profiles,
-    feature_columns,
-    limit=5
-):
-    """
-    Identify the features that differ most between
-    clusters. Used for the explanation section.
-    """
-
-    if len(profiles) < 2:
-        return []
-
-    differences = []
-
-    for column in feature_columns:
-
-        values = []
-
-        for profile in profiles:
-
-            for feature in profile["features"]:
-
-                if feature["column"] != column:
-                    continue
-
-                if feature["type"] == "numerical":
-                    values.append(
-                        feature["mean"]
-                    )
-                else:
-                    values.append(
-                        feature["dominant"]
-                    )
-
-                break
-
-        if len(values) < 2:
-            continue
-
-        # Only numerical features support a spread measure
-        if all(
-            isinstance(v, (int, float))
-            for v in values
-        ):
-
-            spread = max(values) - min(values)
-
-            relative_spread = (
-                spread / abs(np.mean(values))
-                if abs(np.mean(values)) > 0
-                else 0
-            )
-
-            differences.append({
-                "column": column,
-                "spread": round(spread, 3),
-                "relative_spread": round(
-                    float(relative_spread),
-                    3
-                ),
-                "cluster_values": values
-            })
-
-    differences.sort(
-        key=lambda item: item["relative_spread"],
-        reverse=True
-    )
-
-    return differences[:limit]
 
 
 # ============================================================
@@ -433,19 +266,33 @@ def generate_pca_chart(
     output_path
 ):
     """
-    Project features to 2D with PCA and color points by
-    cluster label.
+    Project features to 2D and color points by cluster label.
+
+    Uses TruncatedSVD for sparse matrices and PCA for dense
+    matrices.
     """
 
     if X_transformed.shape[0] < 2:
         return False
 
-    pca = PCA(
-        n_components=2,
-        random_state=42
-    )
+    n_features = X_transformed.shape[1]
 
-    reduced = pca.fit_transform(X_transformed)
+    if n_features < 2:
+        # Cannot project with fewer than 2 features
+        return False
+
+    if hasattr(X_transformed, "toarray"):
+        reducer = TruncatedSVD(
+            n_components=2,
+            random_state=42,
+        )
+    else:
+        reducer = PCA(
+            n_components=2,
+            random_state=42,
+        )
+
+    reduced = reducer.fit_transform(X_transformed)
 
     fig, ax = plt.subplots(
         figsize=(8, 6)
@@ -523,26 +370,89 @@ def perform_clustering(
     if k_range is None:
         k_range = [2, 3, 4, 5, 6]
 
-    roles = identify_column_roles(
+    schema = analyze_schema(
         df,
-        target_column=None
+        target_column=None,
     )
 
-    numerical_columns = roles["numerical_columns"]
-    categorical_columns = roles["categorical_columns"]
+    # No usable features -> clear error
+    if not schema["feature_columns"]:
 
-    feature_columns = (
-        numerical_columns + categorical_columns
-    )
+        return {
+            "success": False,
+            "message": (
+                "Clustering could not be performed: the "
+                "dataset contains no usable feature "
+                "columns. All columns were detected as "
+                "identifiers, constants, or unsupported "
+                "types."
+            ),
+        }
+
+    numerical_columns = schema["numerical_columns"]
+    categorical_columns = schema["categorical_columns"]
+    boolean_columns = schema["boolean_columns"]
+    text_columns = schema["text_columns"]
+    date_columns = schema["date_columns"]
+
+    feature_columns = list(schema["feature_columns"])
 
     X = df[feature_columns]
 
     pipeline = build_preprocessing_pipeline(
         numerical_columns,
-        categorical_columns
+        categorical_columns,
+        text_columns,
+        boolean_columns=boolean_columns,
+        date_columns=date_columns,
     )
 
     X_transformed = pipeline.fit_transform(X)
+
+    # ------------------------------------------------
+    # DIMENSIONALITY REDUCTION FOR TEXT
+    # ------------------------------------------------
+
+    representation_note = None
+
+    if text_columns:
+
+        n_features = X_transformed.shape[1]
+
+        is_sparse = hasattr(X_transformed, "toarray")
+
+        # Keep at most 200 dense components for K-Means
+        if n_features > 200:
+
+            svd = TruncatedSVD(
+                n_components=min(200, X_transformed.shape[0] - 1),
+                random_state=42,
+            )
+
+            X_transformed = svd.fit_transform(X_transformed)
+
+            representation_note = (
+                f"Text features were transformed with TF-IDF "
+                f"({n_features} terms) and reduced with "
+                f"TruncatedSVD to {X_transformed.shape[1]} "
+                "components for clustering."
+            )
+
+        elif is_sparse:
+
+            X_transformed = X_transformed.toarray()
+
+            representation_note = (
+                f"Text features were transformed with TF-IDF "
+                f"({n_features} terms)."
+            )
+
+        else:
+
+            representation_note = (
+                f"Text features were transformed with TF-IDF "
+                f"({n_features} terms)."
+            )
 
     # ------------------------------------------------
     # K EVALUATION
@@ -589,11 +499,21 @@ def perform_clustering(
     # PROFILES + STABILITY + CHART
     # ------------------------------------------------
 
+    representative_terms = representative_text_terms(
+        X_transformed,
+        labels,
+        pipeline,
+        n_clusters,
+        text_columns=text_columns,
+    )
+
     profiles = build_cluster_profiles(
         df,
         feature_columns,
         labels,
-        n_clusters
+        n_clusters,
+        text_columns=text_columns,
+        representative_terms=representative_terms,
     )
 
     distinguishing = find_distinguishing_features(
@@ -657,7 +577,12 @@ def perform_clustering(
         "feature_columns": feature_columns,
         "numerical_columns": numerical_columns,
         "categorical_columns": categorical_columns,
-        "id_columns": roles["id_columns"],
-        "constant_columns": roles["constant_columns"],
+        "boolean_columns": boolean_columns,
+        "text_columns": text_columns,
+        "date_columns": date_columns,
+        "id_columns": schema["id_columns"],
+        "constant_columns": schema["constant_columns"],
+        "unsupported_columns": schema["unsupported_columns"],
+        "representation_note": representation_note,
         "objective": objective
     }

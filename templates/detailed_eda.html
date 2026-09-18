@@ -593,6 +593,98 @@
 
 
     <!-- ================================================= -->
+    <!-- TEXT FEATURES -->
+    <!-- ================================================= -->
+
+    {% if eda["text_analysis"] %}
+
+    <div class="card">
+
+        <h2>
+            Text Feature Analysis
+        </h2>
+
+        {% for column, item in eda["text_analysis"].items() %}
+
+        <h3>
+            {{ column }}
+        </h3>
+
+        <table>
+
+            <tr>
+                <th>Property</th>
+                <th>Value</th>
+            </tr>
+
+            <tr>
+                <td>Missing Values</td>
+                <td>{{ item["missing"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Unique Values</td>
+                <td>{{ item["unique_count"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Average Length (chars)</td>
+                <td>{{ item["avg_length"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Min / Max Length</td>
+                <td>{{ item["min_length"] }} / {{ item["max_length"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Average Word Count</td>
+                <td>{{ item["avg_words"] }}</td>
+            </tr>
+
+        </table>
+
+        {% if item["avg_words_by_target"] %}
+
+        <p>
+            <strong>
+                Average word count by target:
+            </strong>
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Class</th>
+                <th>Avg Words</th>
+            </tr>
+
+            {% for row in item["avg_words_by_target"] %}
+
+            <tr>
+                <td>{{ row["class"] }}</td>
+                <td>{{ row["avg_words"] }}</td>
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% endif %}
+
+        {% endfor %}
+
+        <p class="meta">
+            Text columns will be transformed into numerical
+            features using TF-IDF during preprocessing.
+        </p>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
     <!-- CATEGORICAL FEATURES -->
     <!-- ================================================= -->
 
@@ -706,10 +798,81 @@
 
 
     <!-- ================================================= -->
+    <!-- DATE FEATURES -->
+    <!-- ================================================= -->
+
+    {% if eda["date_analysis"] %}
+
+    <div class="card">
+
+        <h2>
+            Date Feature Analysis
+        </h2>
+
+        {% for column, item in eda["date_analysis"].items() %}
+
+        <h3>
+            {{ column }}
+        </h3>
+
+        <table>
+
+            <tr>
+                <th>Property</th>
+                <th>Value</th>
+            </tr>
+
+            <tr>
+                <td>Missing Values</td>
+                <td>{{ item["missing"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Minimum Date</td>
+                <td>{{ item["min"] or "-" }}</td>
+            </tr>
+
+            <tr>
+                <td>Maximum Date</td>
+                <td>{{ item["max"] or "-" }}</td>
+            </tr>
+
+            <tr>
+                <td>Date Range (days)</td>
+                <td>{{ item["range_days"] or "-" }}</td>
+            </tr>
+
+            <tr>
+                <td>Unique Dates</td>
+                <td>{{ item["unique_count"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Time-Ordered</td>
+                <td>{{ item["is_time_ordered"] }}</td>
+            </tr>
+
+        </table>
+
+        {% endfor %}
+
+        <p class="meta">
+            Date columns will be converted to year, month,
+            day, day-of-week and hour components during
+            preprocessing. If the dataset is time-ordered,
+            TaskAware uses a chronological validation split.
+        </p>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
     <!-- EXCLUDED COLUMNS -->
     <!-- ================================================= -->
 
-    {% if eda["id_columns"] or eda["constant_columns"] %}
+    {% if eda["id_columns"] or eda["constant_columns"] or eda["unsupported_columns"] %}
 
     <div class="card">
 
@@ -756,6 +919,32 @@
         <ul>
 
             {% for column in eda["constant_columns"] %}
+
+            <li>
+                {{ column }}
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+        {% endif %}
+
+        {% if eda["unsupported_columns"] %}
+
+        <h3>
+            Unsupported Columns
+        </h3>
+
+        <p>
+            The following columns contain unsupported object
+            types (lists, dicts, bytes or similar) and were
+            excluded from the analysis:
+        </p>
+
+        <ul>
+
+            {% for column in eda["unsupported_columns"] %}
 
             <li>
                 {{ column }}

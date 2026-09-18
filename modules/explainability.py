@@ -1,3 +1,21 @@
+"""
+Explainability for TaskAware.
+
+Explains supervised models using SHAP where compatible, and
+falls back to model coefficients or permutation importance
+otherwise.
+
+Supports:
+    - dense numerical features
+    - one-hot encoded features
+    - sparse TF-IDF features
+    - mixed transformed matrices
+
+Term names keep their source column prefix (e.g.
+"review:excellent"). Displayed features are limited so huge
+text vocabularies never produce oversized output.
+"""
+
 import os
 import warnings
 
@@ -7,27 +25,56 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from modules.preprocessing import (
-    build_preprocessing_pipeline,
-    identify_column_roles
-)
+from sklearn.inspection import permutation_importance
+
+from modules.schema_analyzer import analyze_schema
 
 
 # ============================================================
-# FEATURE IMPORTANCE
+# FEATURE NAME RECOVERY
+# ============================================================
+
+def _get_feature_names(pipeline, X):
+    """
+    Retrieve feature names after preprocessing.
+    """
+    try:
+        preprocessor = pipeline.named_steps.get(
+            "preprocessor"
+        )
+        return list(
+            preprocessor.get_feature_names_out()
+        )
+    except Exception:
+        return list(X.columns)
+
+
+def _source_column(name, text_columns):
+    """
+    Recover the source column of a transformed feature name.
+    """
+    if ":" in name:
+        source = name.split(":", 1)[0]
+        if source in text_columns:
+            return source
+    return None
+
+
+# ============================================================
+# MODEL FEATURE IMPORTANCE (trees)
 # ============================================================
 
 def get_model_feature_importance(
     pipeline,
     X,
     y,
-    problem_type
+    problem_type,
+    feature_names=None,
 ):
     """
     Extract feature importance from tree-based models
-    when available. Returns a list of importance dicts.
+    when available.
     """
-
     model = pipeline.named_steps.get("model")
 
     if model is None:
@@ -38,16 +85,8 @@ def get_model_feature_importance(
 
     try:
 
-        # Transform X with the fitted preprocessor so the
-        # feature names align with the model's view.
-        preprocessor = pipeline.named_steps.get(
-            "preprocessor"
-        )
-
-        feature_names = _get_feature_names(
-            pipeline,
-            X
-        )
+        if feature_names is None:
+            feature_names = _get_feature_names(pipeline, X)
 
         importances = model.feature_importances_
 
@@ -56,25 +95,152 @@ def get_model_feature_importance(
 
         items = []
 
-        for name, importance in zip(
-            feature_names,
-            importances
-        ):
+        for name, importance in zip(feature_names, importances):
 
             items.append({
                 "feature": name,
                 "importance": round(
                     float(importance),
-                    4
-                )
+                    4,
+                ),
             })
 
         items.sort(
             key=lambda item: item["importance"],
-            reverse=True
+            reverse=True,
         )
 
         return items
+
+    except Exception:
+        return []
+
+
+# ============================================================
+# COEFFICIENT IMPORTANCE (linear models)
+# ============================================================
+
+def get_coefficient_importance(
+    pipeline,
+    feature_names,
+    problem_type,
+    limit=20,
+):
+    """
+    Extract feature importance from linear model
+    coefficients.
+
+    For classification, the mean absolute coefficient
+    across classes is used. For regression, the absolute
+    coefficients are used directly.
+    """
+    model = pipeline.named_steps.get("model")
+
+    if model is None:
+        return []
+
+    if not hasattr(model, "coef_"):
+        return []
+
+    try:
+
+        coef = np.asarray(model.coef_, dtype=float)
+
+        if coef.ndim == 1:
+            values = np.abs(coef)
+        else:
+            values = np.abs(coef).mean(axis=0)
+
+        items = []
+
+        for name, value in zip(feature_names, values):
+
+            items.append({
+                "feature": name,
+                "importance": round(
+                    float(value),
+                    4,
+                ),
+            })
+
+        items.sort(
+            key=lambda item: item["importance"],
+            reverse=True,
+        )
+
+        return items[:limit]
+
+    except Exception:
+        return []
+
+
+# ============================================================
+# PERMUTATION IMPORTANCE (fallback)
+# ============================================================
+
+def get_permutation_importance(
+    pipeline,
+    X,
+    y,
+    problem_type,
+    feature_names,
+    n_repeats=5,
+    limit=20,
+    sample_size=500,
+):
+    """
+    Compute permutation importance on a sample. Used when
+    SHAP is not applicable and the model has neither tree
+    importances nor coefficients.
+    """
+    try:
+
+        n = len(X)
+
+        sample = min(sample_size, n)
+
+        X_sample = X.iloc[:sample]
+        y_sample = y.iloc[:sample]
+
+        scoring = (
+            "f1_macro"
+            if problem_type == "Classification"
+            else "r2"
+        )
+
+        result = permutation_importance(
+            pipeline,
+            X_sample,
+            y_sample,
+            scoring=scoring,
+            n_repeats=n_repeats,
+            random_state=42,
+            n_jobs=-1,
+        )
+
+        items = []
+
+        for i, name in enumerate(feature_names):
+
+            if i >= len(result.importances_mean):
+                break
+
+            items.append({
+                "feature": name,
+                "importance": round(
+                    float(
+                        np.abs(result.importances_mean[i])
+                    ),
+                    4,
+                ),
+            })
+
+        items.sort(
+            key=lambda item: item["importance"],
+            reverse=True,
+        )
+
+        return items[:limit]
 
     except Exception:
         return []
@@ -87,18 +253,16 @@ def get_model_feature_importance(
 def compute_shap_values(
     pipeline,
     X,
-    problem_type
+    problem_type,
+    feature_names=None,
+    sample_size=150,
 ):
     """
     Compute SHAP values for the model.
 
-    Uses the full pipeline so that input data flows through
+    Uses the full pipeline so input data flows through
     preprocessing exactly as during training.
-
-    Returns (shap_values, feature_names, model).
-    If SHAP cannot be applied, returns (None, ...).
     """
-
     import shap
 
     model = pipeline.named_steps.get("model")
@@ -114,37 +278,63 @@ def compute_shap_values(
 
         X_transformed = preprocessor.transform(X)
 
-        feature_names = _get_feature_names(
-            pipeline,
-            X
-        )
+        if feature_names is None:
+            feature_names = _get_feature_names(pipeline, X)
 
-        X_df = pd.DataFrame(
-            X_transformed,
-            columns=feature_names
-        )
+        # SHAP needs dense input; cap for sparse TF-IDF.
+        if hasattr(X_transformed, "toarray"):
 
-        # Choose the explainer based on model type
+            # Sample before densifying to avoid huge arrays
+            n = X_transformed.shape[0]
+            sample_idx = np.random.RandomState(42).choice(
+                n,
+                size=min(sample_size, n),
+                replace=False,
+            )
+
+            X_sample_sparse = X_transformed[sample_idx]
+
+            X_sample_dense = X_sample_sparse.toarray()
+
+            X_df = pd.DataFrame(
+                X_sample_dense,
+                columns=feature_names,
+            )
+
+        else:
+
+            n = len(X)
+            sample_idx = np.random.RandomState(42).choice(
+                n,
+                size=min(sample_size, n),
+                replace=False,
+            )
+
+            X_df = pd.DataFrame(
+                X_transformed,
+                columns=feature_names,
+            ).iloc[sample_idx].reset_index(drop=True)
+
         is_tree = isinstance(
             model,
             (
                 __import__(
                     "sklearn.ensemble",
-                    fromlist=["*"]
+                    fromlist=["*"],
                 ).RandomForestClassifier,
                 __import__(
                     "sklearn.ensemble",
-                    fromlist=["*"]
+                    fromlist=["*"],
                 ).RandomForestRegressor,
                 __import__(
                     "sklearn.tree",
-                    fromlist=["*"]
+                    fromlist=["*"],
                 ).DecisionTreeClassifier,
                 __import__(
                     "sklearn.tree",
-                    fromlist=["*"]
-                ).DecisionTreeRegressor
-            )
+                    fromlist=["*"],
+                ).DecisionTreeRegressor,
+            ),
         )
 
         if is_tree:
@@ -152,49 +342,14 @@ def compute_shap_values(
         else:
             explainer = shap.LinearExplainer(model, X_df)
 
-        # Use a sample for speed
-        sample_size = min(
-            len(X_df),
-            200
-        )
-
-        X_sample = X_df.sample(
-            n=sample_size,
-            random_state=42
-        )
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
+            shap_values = explainer.shap_values(X_df)
 
-            shap_values = explainer.shap_values(X_sample)
-
-        return shap_values, X_sample, explainer
+        return shap_values, X_df, explainer
 
     except Exception:
         return None, [], None
-
-
-def _get_feature_names(
-    pipeline,
-    X
-):
-    """
-    Retrieve feature names after preprocessing.
-    """
-
-    try:
-
-        preprocessor = pipeline.named_steps.get(
-            "preprocessor"
-        )
-
-        return list(
-            preprocessor.get_feature_names_out()
-        )
-
-    except Exception:
-
-        return list(X.columns)
 
 
 # ============================================================
@@ -204,28 +359,18 @@ def _get_feature_names(
 def summarize_shap(
     shap_values,
     feature_names,
-    problem_type
+    problem_type,
+    limit=20,
 ):
     """
     Convert raw SHAP values into a readable per-feature
-    summary.
-
-    Returns
-    -------
-    list of dicts
-        sorted by mean absolute SHAP value.
+    summary, limited to the top features.
     """
-
     try:
 
-        values = np.asarray(
-            shap_values,
-            dtype=float
-        )
+        values = np.asarray(shap_values, dtype=float)
 
         if values.ndim == 3:
-            # For multiclass: average absolute contribution
-            # across classes
             values = values.mean(axis=2)
 
         if values.ndim != 2:
@@ -244,16 +389,16 @@ def summarize_shap(
                 "feature": name,
                 "mean_abs_shap": round(
                     float(mean_abs[i]),
-                    4
-                )
+                    4,
+                ),
             })
 
         items.sort(
             key=lambda item: item["mean_abs_shap"],
-            reverse=True
+            reverse=True,
         )
 
-        return items
+        return items[:limit]
 
     except Exception:
         return []
@@ -267,12 +412,12 @@ def generate_shap_chart(
     shap_values,
     X_sample,
     problem_type,
-    output_path
+    output_path,
 ):
     """
-    Generate a SHAP summary bar chart.
+    Generate a SHAP summary bar chart, limited to a small
+    number of features.
     """
-
     import shap
 
     if shap_values is None:
@@ -286,7 +431,7 @@ def generate_shap_chart(
             shap_values,
             X_sample,
             show=False,
-            max_display=15
+            max_display=15,
         )
 
         plt.tight_layout()
@@ -294,7 +439,7 @@ def generate_shap_chart(
         plt.savefig(
             output_path,
             dpi=100,
-            bbox_inches="tight"
+            bbox_inches="tight",
         )
 
         plt.close()
@@ -317,59 +462,57 @@ def perform_explainability(
     X=None,
     y=None,
     charts_dir=None,
-    chart_id=None
+    chart_id=None,
+    schema=None,
 ):
     """
-    Explain the best model using SHAP.
+    Explain the best model.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        Original dataset (used to rebuild if needed).
-    target_column : str
-        Target column.
-    problem_type : str
-        Classification or Regression.
-    pipeline : sklearn Pipeline or None
-        Fitted pipeline (preprocessor + model).
-    X, y : data or None
-        Feature matrix and target.
-    charts_dir, chart_id : str or None
-        Chart output settings.
+    Uses SHAP where compatible; otherwise falls back to
+    coefficients (linear) or permutation importance.
 
     Returns
     -------
     dict
-        SHAP summary, importance, and chart info.
+        success, message, method, top_features,
+        feature_importance, shap_summary, chart_file,
+        source_columns.
     """
 
     result = {
         "success": False,
         "message": "",
+        "method": None,
         "shap_summary": [],
         "feature_importance": [],
         "chart_file": None,
-        "top_features": []
+        "top_features": [],
+        "source_columns": {},
     }
 
     if pipeline is None:
         result["message"] = "No trained model was provided."
         return result
 
-    # --------------------------------------------------------
-    # SHAP VALUES
-    # --------------------------------------------------------
+    if schema is None:
+        schema = analyze_schema(
+            df,
+            target_column=target_column,
+        )
+
+    text_columns = schema["text_columns"]
+
+    feature_names = _get_feature_names(pipeline, X)
+
+    # ------------------------------------------------
+    # SHAP
+    # ------------------------------------------------
 
     shap_values, X_sample, explainer = compute_shap_values(
         pipeline,
         X,
-        problem_type
-    )
-
-    feature_names = (
-        list(X_sample.columns)
-        if X_sample is not None
-        else []
+        problem_type,
+        feature_names=feature_names,
     )
 
     if shap_values is not None:
@@ -377,36 +520,37 @@ def perform_explainability(
         shap_summary = summarize_shap(
             shap_values,
             feature_names,
-            problem_type
+            problem_type,
         )
 
         result["shap_summary"] = shap_summary
 
         result["top_features"] = [
             item["feature"]
-            for item in shap_summary[:5]
+            for item in shap_summary[:10]
         ]
 
-        # Chart
+        result["method"] = "SHAP"
+
         if charts_dir:
 
             os.makedirs(
                 charts_dir,
-                exist_ok=True
+                exist_ok=True,
             )
 
             base = chart_id or "shap"
 
             chart_path = os.path.join(
                 charts_dir,
-                f"{base}_shap.png"
+                f"{base}_shap.png",
             )
 
             if generate_shap_chart(
                 shap_values,
                 X_sample,
                 problem_type,
-                chart_path
+                chart_path,
             ):
 
                 result["chart_file"] = os.path.basename(
@@ -416,30 +560,97 @@ def perform_explainability(
         result["success"] = True
 
         result["message"] = (
-            "SHAP analysis completed successfully."
+            "SHAP analysis completed successfully. "
+            "Feature contributions represent learned "
+            "associations, not proof of causation."
         )
 
-    # --------------------------------------------------------
-    # MODEL FEATURE IMPORTANCE (fallback / complement)
-    # --------------------------------------------------------
+    # ------------------------------------------------
+    # COEFFICIENTS (fallback for linear models)
+    # ------------------------------------------------
 
-    if X is not None and y is not None:
+    if not result["feature_importance"]:
 
-        importance = get_model_feature_importance(
+        coefficient_importance = get_coefficient_importance(
+            pipeline,
+            feature_names,
+            problem_type,
+        )
+
+        if coefficient_importance:
+
+            result["feature_importance"] = (
+                coefficient_importance
+            )
+
+            result["top_features"] = [
+                item["feature"]
+                for item in coefficient_importance[:10]
+            ]
+
+            if result["method"] is None:
+                result["method"] = "Model Coefficients"
+
+    # ------------------------------------------------
+    # TREE IMPORTANCE
+    # ------------------------------------------------
+
+    if not result["feature_importance"]:
+
+        tree_importance = get_model_feature_importance(
             pipeline,
             X,
             y,
-            problem_type
+            problem_type,
+            feature_names=feature_names,
         )
 
-        if importance:
-            result["feature_importance"] = importance
+        if tree_importance:
 
-            if not result["shap_summary"]:
-                result["top_features"] = [
-                    item["feature"]
-                    for item in importance[:5]
-                ]
+            result["feature_importance"] = tree_importance
+
+            result["top_features"] = [
+                item["feature"]
+                for item in tree_importance[:10]
+            ]
+
+            if result["method"] is None:
+                result["method"] = "Feature Importance"
+
+    # ------------------------------------------------
+    # PERMUTATION IMPORTANCE (final fallback)
+    # ------------------------------------------------
+
+    if not result["feature_importance"]:
+
+        permutation = get_permutation_importance(
+            pipeline,
+            X,
+            y,
+            problem_type,
+            feature_names,
+        )
+
+        if permutation:
+
+            result["feature_importance"] = permutation
+
+            result["top_features"] = [
+                item["feature"]
+                for item in permutation[:10]
+            ]
+
+            result["method"] = "Permutation Importance"
+
+    # ------------------------------------------------
+    # SOURCE COLUMN MAP
+    # ------------------------------------------------
+
+    for name in result["top_features"]:
+        source = _source_column(name, text_columns)
+        result["source_columns"][name] = (
+            source if source else "structured"
+        )
 
     if not result["shap_summary"] and not result["feature_importance"]:
 
@@ -447,5 +658,9 @@ def perform_explainability(
             "Explainability could not be computed for "
             "this model."
         )
+
+    else:
+
+        result["success"] = True
 
     return result

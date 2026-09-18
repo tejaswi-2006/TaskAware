@@ -1,7 +1,18 @@
+"""
+Feature selection for TaskAware.
+
+Uses the central schema analyzer. TaskAware does NOT
+automatically delete features based on low correlation. It
+reports findings and keeps text-derived features intact.
+
+Supports sparse TF-IDF matrices and keeps term names
+prefixed with their source column (e.g. "review:excellent").
+"""
+
 import numpy as np
 import pandas as pd
 
-from sklearn.feature_selection import VarianceThreshold
+from modules.schema_analyzer import analyze_schema
 
 
 # ============================================================
@@ -11,7 +22,7 @@ from sklearn.feature_selection import VarianceThreshold
 def find_high_correlation(
     df,
     feature_columns,
-    threshold=0.90
+    threshold=0.90,
 ):
     """
     Identify pairs of numerical features with very high
@@ -56,18 +67,18 @@ def find_high_correlation(
                     "feature_b": str(col_b),
                     "correlation": round(
                         float(value),
-                        3
+                        3,
                     ),
                     "redundancy_level": (
                         "Very High"
                         if abs(value) >= 0.95
                         else "High"
-                    )
+                    ),
                 })
 
     pairs.sort(
         key=lambda item: abs(item["correlation"]),
-        reverse=True
+        reverse=True,
     )
 
     return pairs
@@ -81,13 +92,11 @@ def find_low_variance(
     df,
     numerical_columns,
     categorical_columns,
-    threshold=0.01
+    threshold=0.01,
 ):
     """
-    Identify features with very low variance after
-    standardization. These carry little information.
+    Identify features with very low variance.
     """
-
     low = []
 
     for column in numerical_columns:
@@ -103,16 +112,15 @@ def find_low_variance(
             low.append({
                 "column": column,
                 "std": 0.0,
-                "note": "Zero variance (constant)"
+                "note": "Zero variance (constant)",
             })
         elif std < threshold:
             low.append({
                 "column": column,
                 "std": round(std, 4),
-                "note": "Very low variance"
+                "note": "Very low variance",
             })
 
-    # Categorical: near-constant (one dominant category)
     for column in categorical_columns:
 
         series = df[column].dropna()
@@ -134,7 +142,7 @@ def find_low_variance(
                 "note": (
                     f"Near-constant: one category covers "
                     f"{dominant_ratio:.1%} of values"
-                )
+                ),
             })
 
     return low
@@ -148,16 +156,12 @@ def find_leakage_candidates(
     df,
     feature_columns,
     target_column,
-    threshold=0.97
+    threshold=0.97,
 ):
     """
     Identify features suspiciously correlated with the
-    target. These may leak the outcome.
-
-    Only checks numerical-vs-numerical correlation and
-    is reported as a concern, not an automatic removal.
+    target. Reported as a concern, not an automatic removal.
     """
-
     if not target_column:
         return []
 
@@ -192,24 +196,51 @@ def find_leakage_candidates(
                 "column": column,
                 "correlation_with_target": round(
                     float(corr),
-                    3
+                    3,
                 ),
                 "warning": (
                     f"Correlation of {corr:.2f} with the "
                     "target may indicate information leakage "
                     "if this feature is only known after the "
                     "outcome occurs."
-                )
+                ),
             })
 
     candidates.sort(
         key=lambda item: abs(
             item["correlation_with_target"]
         ),
-        reverse=True
+        reverse=True,
     )
 
     return candidates
+
+
+# ============================================================
+# TEXT TERM FEATURES
+# ============================================================
+
+def text_term_features(
+    transformed_feature_names,
+    text_columns,
+    limit=20,
+):
+    """
+    Extract representative text terms from the transformed
+    feature names (prefixed as "column:term").
+
+    Returns a limited list for display purposes.
+    """
+    if not text_columns:
+        return []
+
+    terms = [
+        name for name in transformed_feature_names
+        if ":" in name
+        and name.split(":", 1)[0] in text_columns
+    ]
+
+    return terms[:limit]
 
 
 # ============================================================
@@ -220,15 +251,12 @@ def perform_feature_selection(
     df,
     feature_columns,
     target_column=None,
-    high_corr_threshold=0.90
+    high_corr_threshold=0.90,
+    schema=None,
+    transformed_feature_names=None,
 ):
     """
     Analyze features and report selection-relevant findings.
-
-    TaskAware does NOT automatically delete features based
-    on low correlation. It only reports findings and removes
-    features with no information at all (already handled in
-    preprocessing: ids and constant columns).
 
     Returns
     -------
@@ -236,42 +264,56 @@ def perform_feature_selection(
         Structured feature-selection report.
     """
 
+    if schema is None:
+        schema = analyze_schema(
+            df,
+            target_column=target_column,
+        )
+
     high_correlation = find_high_correlation(
         df,
         feature_columns,
-        threshold=high_corr_threshold
+        threshold=high_corr_threshold,
     )
 
-    numerical = [
-        c for c in feature_columns
-        if pd.api.types.is_numeric_dtype(df[c])
-    ]
+    numerical = schema["numerical_columns"]
 
-    categorical = [
-        c for c in feature_columns
-        if not pd.api.types.is_numeric_dtype(df[c])
-    ]
+    categorical = (
+        schema["categorical_columns"]
+        + schema["boolean_columns"]
+    )
 
     low_variance = find_low_variance(
         df,
         numerical,
-        categorical
+        categorical,
     )
 
     leakage = find_leakage_candidates(
         df,
         feature_columns,
-        target_column
+        target_column,
     )
 
-    # Features with no apparent linear relationship
-    # are NOT removed. This is reported as guidance only.
+    text_terms = text_term_features(
+        transformed_feature_names or [],
+        schema["text_columns"],
+    )
+
     return {
         "feature_count": len(feature_columns),
+        "text_columns": schema["text_columns"],
+        "text_term_features": text_terms,
+        "text_term_count": len(text_terms),
         "high_correlation": high_correlation,
         "high_corr_count": len(high_correlation),
         "low_variance": low_variance,
         "low_variance_count": len(low_variance),
         "leakage_candidates": leakage,
-        "leakage_count": len(leakage)
+        "leakage_count": len(leakage),
+        "removed_id_columns": schema["id_columns"],
+        "removed_constant_columns": schema["constant_columns"],
+        "removed_unsupported_columns": (
+            schema["unsupported_columns"]
+        ),
     }

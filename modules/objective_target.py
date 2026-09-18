@@ -1,6 +1,8 @@
 import pandas as pd
 import re
 
+from modules.schema_analyzer import analyze_schema
+
 
 # ============================================================
 # OBJECTIVE ANALYSIS
@@ -209,102 +211,101 @@ def normalize_column_name(column):
 def detect_identifier(
     series,
     column_name,
-    total_rows
+    total_rows,
+    schema=None,
 ):
     """
-    Detect identifier-like columns using both
-    statistical evidence and column naming.
+    Detect identifier-like columns.
+
+    Delegates to the central schema analyzer so that text,
+    date and unsupported columns are never misclassified as
+    identifiers.
     """
 
-    if total_rows == 0:
+    if schema is not None:
+        for record in schema["columns"]:
+            if record["column"] == str(column_name):
+                return record["role"] == "identifier"
 
+    if total_rows == 0:
         return False
 
-    unique_count = int(
-        series.nunique(
-            dropna=True
-        )
-    )
+    from modules.schema_analyzer import _looks_like_identifier
 
     unique_ratio = (
-        unique_count /
-        total_rows
+        series.nunique(dropna=True) / total_rows
     )
 
-    tokens = normalize_column_name(
-        column_name
+    is_id, _ = _looks_like_identifier(
+        series,
+        column_name,
+        unique_ratio,
     )
 
-    id_words = {
-
-        "id",
-        "identifier",
-        "studentid",
-        "customerid",
-        "userid",
-        "recordid",
-        "userid",
-        "rollno",
-        "rollnumber",
-        "registrationid",
-        "serial",
-        "serialnumber"
-    }
-
-    name_suggests_id = any(
-
-        token in id_words
-
-        for token in tokens
-    )
-
-    # Strong statistical evidence
-    if unique_ratio >= 0.95:
-
-        return True
-
-    # Strong naming evidence
-    if name_suggests_id:
-
-        return True
-
-    return False
+    return is_id
 
 
 # ============================================================
 # COLUMN TYPE
 # ============================================================
 
-def determine_column_type(series):
+def determine_column_type(
+    series,
+    column_name=None,
+    schema=None,
+):
+    """
+    Determine the TaskAware column type for a target
+    candidate.
+
+    Delegates to the central schema analyzer when available.
+
+    Returns one of:
+        categorical, categorical_numeric, numerical, text,
+        datetime, boolean, other
+    """
+
+    if schema is not None:
+        for record in schema["columns"]:
+            if record["column"] == str(column_name):
+                role = record["role"]
+                return _role_to_type(role)
 
     if pd.api.types.is_bool_dtype(series):
-
-        return "categorical"
+        return "boolean"
 
     if pd.api.types.is_numeric_dtype(series):
-
-        unique_count = series.nunique(
-            dropna=True
-        )
-
+        unique_count = series.nunique(dropna=True)
         if unique_count <= 10:
-
             return "categorical_numeric"
-
         return "numerical"
 
     if (
         pd.api.types.is_object_dtype(series)
-        or
-        isinstance(
-            series.dtype,
-            pd.CategoricalDtype
-        )
+        or isinstance(series.dtype, pd.CategoricalDtype)
     ):
-
         return "categorical"
 
     return "other"
+
+
+def _role_to_type(role):
+    """
+    Map a central schema role to the objective_target column
+    type vocabulary used by the scoring logic.
+    """
+    mapping = {
+        "numeric": "numerical",
+        "categorical": "categorical",
+        "boolean": "boolean",
+        "text": "text",
+        "datetime": "datetime",
+        "identifier": "other",
+        "unsupported": "other",
+        "constant": "other",
+    }
+
+    return mapping.get(role, "other")
 
 
 # ============================================================
@@ -580,7 +581,8 @@ def objective_alignment(
 
 def analyze_target_candidates(
     df,
-    objective=None
+    objective=None,
+    schema=None
 ):
     """
     Analyze and rank possible target columns.
@@ -609,6 +611,9 @@ def analyze_target_candidates(
         objective
     )
 
+    if schema is None:
+        schema = analyze_schema(df)
+
     for column in df.columns:
 
         series = df[column]
@@ -634,7 +639,9 @@ def analyze_target_candidates(
         )
 
         column_type = determine_column_type(
-            series
+            series,
+            column_name=column,
+            schema=schema,
         )
 
         score = 0
@@ -648,34 +655,67 @@ def analyze_target_candidates(
         # ====================================================
 
         is_id = detect_identifier(
-
             series,
-
             column,
-
-            total_rows
+            total_rows,
+            schema=schema,
         )
 
         if is_id:
 
             score -= 100
 
-            if unique_ratio >= 0.95:
+            id_record = next(
+                (
+                    record for record
+                    in schema["columns"]
+                    if record["column"] == str(column)
+                ),
+                None,
+            )
 
-                negative_reasons.append(
+            if id_record and id_record["reasons"]:
 
-                    f"Almost every value is unique "
-                    f"({unique_count} out of "
-                    f"{total_rows} rows), indicating "
-                    "identifier-like behavior."
+                negative_reasons.extend(
+                    id_record["reasons"]
                 )
 
             else:
 
                 negative_reasons.append(
-                    "The column name suggests that "
-                    "this may be an identifier."
+                    "The column is detected as an "
+                    "identifier and cannot be used as "
+                    "a prediction target."
                 )
+
+        # ====================================================
+        # 1b. TEXT / DATETIME / UNSUPPORTED TARGET
+        # ====================================================
+
+        is_text_target = column_type == "text"
+        is_datetime_target = column_type == "datetime"
+
+        if is_text_target:
+
+            score -= 80
+
+            negative_reasons.append(
+                "The column contains natural-language "
+                "text. The current prediction engine "
+                "supports structured categorical or "
+                "numerical targets, not free-text "
+                "prediction."
+            )
+
+        if is_datetime_target:
+
+            score -= 60
+
+            negative_reasons.append(
+                "The column is a date or datetime column. "
+                "TaskAware does not predict raw dates; "
+                "select a structured outcome instead."
+            )
 
         # ====================================================
         # 2. EMPTY / CONSTANT
@@ -748,7 +788,8 @@ def analyze_target_candidates(
 
         if column_type in [
             "categorical",
-            "categorical_numeric"
+            "categorical_numeric",
+            "boolean"
         ]:
 
             if 2 <= unique_count <= 10:
@@ -822,7 +863,8 @@ def analyze_target_candidates(
 
             if column_type in [
                 "categorical",
-                "categorical_numeric"
+                "categorical_numeric",
+                "boolean"
             ] and 2 <= unique_count <= 10:
 
                 score += 25
@@ -860,7 +902,8 @@ def analyze_target_candidates(
 
             elif column_type in [
                 "categorical",
-                "categorical_numeric"
+                "categorical_numeric",
+                "boolean"
             ]:
 
                 score -= 5
@@ -1002,7 +1045,8 @@ def analyze_target_candidates(
 
         if column_type in [
             "categorical",
-            "categorical_numeric"
+            "categorical_numeric",
+            "boolean"
         ]:
 
             possible_problem_type = (
