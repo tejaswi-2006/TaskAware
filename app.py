@@ -1,7 +1,9 @@
-from flask import Flask, render_template, request, send_from_directory
+from flask import Flask, render_template, request, send_from_directory, redirect, url_for, flash, session
 import os
 import pandas as pd
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 
 # ============================================================
 # PROJECT MODULES
@@ -14,9 +16,16 @@ from modules.problem_type_detector import detect_problem_type
 from modules.detailed_eda import perform_detailed_eda
 from modules.preprocessing import prepare_preprocessing
 from modules.feature_selection import perform_feature_selection
-from modules.model_trainer import train_models
+from modules.model_trainer import train_models, train_named_model
 from modules.model_selector import select_best_model
 from modules.clustering import perform_clustering
+from modules.explainability import perform_explainability
+from modules.ai_explainer import generate_explanation, get_api_key
+import modules.okf_manager as okf_manager
+from modules.okf_manager import okf_summary
+from modules.report_generator import collect_report_data, save_report
+import modules.database as database
+from modules.database import init_db
 
 
 app = Flask(__name__)
@@ -30,6 +39,8 @@ UPLOAD_FOLDER = "uploads"
 
 CHARTS_FOLDER = "results/charts"
 
+REPORTS_FOLDER = "results/reports"
+
 ALLOWED_EXTENSIONS = {
     "csv",
     "xlsx"
@@ -38,6 +49,8 @@ ALLOWED_EXTENSIONS = {
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 app.config["CHARTS_FOLDER"] = CHARTS_FOLDER
+
+app.config["REPORTS_FOLDER"] = REPORTS_FOLDER
 
 os.makedirs(
     UPLOAD_FOLDER,
@@ -48,6 +61,22 @@ os.makedirs(
     CHARTS_FOLDER,
     exist_ok=True
 )
+
+os.makedirs(
+    REPORTS_FOLDER,
+    exist_ok=True
+)
+
+# ============================================================
+# SESSION + DATABASE INIT
+# ============================================================
+
+app.secret_key = os.environ.get(
+    "TASKAWARE_SECRET_KEY",
+    "taskaware-dev-secret-key"
+)
+
+init_db()
 
 
 # ============================================================
@@ -175,6 +204,329 @@ def home():
 
 
 # ============================================================
+# LOGIN REQUIRED DECORATOR
+# ============================================================
+
+def login_required(view):
+
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+
+        if "user_id" not in session:
+
+            flash(
+                "Please log in to continue.",
+                "warning"
+            )
+
+            return redirect(
+                url_for("login")
+            )
+
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+# ============================================================
+# REGISTER
+# ============================================================
+
+@app.route(
+    "/register",
+    methods=["GET", "POST"]
+)
+def register():
+
+    if request.method == "GET":
+
+        return render_template(
+            "auth.html",
+            mode="register"
+        )
+
+    username = request.form.get(
+        "username",
+        ""
+    ).strip()
+
+    email = request.form.get(
+        "email",
+        ""
+    ).strip()
+
+    password = request.form.get(
+        "password",
+        ""
+    )
+
+    confirm = request.form.get(
+        "confirm_password",
+        ""
+    )
+
+    # --------------------------------------------------------
+    # VALIDATION
+    # --------------------------------------------------------
+
+    if not username or not email or not password:
+
+        flash(
+            "All fields are required.",
+            "error"
+        )
+
+        return render_template(
+            "auth.html",
+            mode="register"
+        )
+
+    if password != confirm:
+
+        flash(
+            "Passwords do not match.",
+            "error"
+        )
+
+        return render_template(
+            "auth.html",
+            mode="register"
+        )
+
+    if len(password) < 6:
+
+        flash(
+            "Password must be at least 6 characters.",
+            "error"
+        )
+
+        return render_template(
+            "auth.html",
+            mode="register"
+        )
+
+    # --------------------------------------------------------
+    # CREATE USER
+    # --------------------------------------------------------
+
+    password_hash = generate_password_hash(
+        password
+    )
+
+    user_id, error = database.create_user(
+        username,
+        email,
+        password_hash
+    )
+
+    if error:
+
+        flash(
+            "Username or email already exists.",
+            "error"
+        )
+
+        return render_template(
+            "auth.html",
+            mode="register"
+        )
+
+    session["user_id"] = user_id
+
+    session["username"] = username
+
+    flash(
+        "Registration successful. Welcome!",
+        "success"
+    )
+
+    return redirect(
+        url_for("dashboard")
+    )
+
+
+# ============================================================
+# LOGIN
+# ============================================================
+
+@app.route(
+    "/login",
+    methods=["GET", "POST"]
+)
+def login():
+
+    if request.method == "GET":
+
+        return render_template(
+            "auth.html",
+            mode="login"
+        )
+
+    username = request.form.get(
+        "username",
+        ""
+    ).strip()
+
+    password = request.form.get(
+        "password",
+        ""
+    )
+
+    user = database.get_user_by_username(
+        username
+    )
+
+    if not user or not check_password_hash(
+        user["password_hash"],
+        password
+    ):
+
+        flash(
+            "Invalid username or password.",
+            "error"
+        )
+
+        return render_template(
+            "auth.html",
+            mode="login"
+        )
+
+    session["user_id"] = user["id"]
+
+    session["username"] = user["username"]
+
+    flash(
+        "Logged in successfully.",
+        "success"
+    )
+
+    return redirect(
+        url_for("dashboard")
+    )
+
+
+# ============================================================
+# LOGOUT
+# ============================================================
+
+@app.route("/logout")
+def logout():
+
+    session.clear()
+
+    flash(
+        "You have been logged out.",
+        "info"
+    )
+
+    return redirect(
+        url_for("home")
+    )
+
+
+# ============================================================
+# DASHBOARD
+# ============================================================
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+
+    projects = database.list_projects(
+        session["user_id"]
+    )
+
+    return render_template(
+        "dashboard.html",
+        username=session.get("username"),
+        projects=projects
+    )
+
+
+# ============================================================
+# CREATE PROJECT
+# ============================================================
+
+@app.route(
+    "/project/new",
+    methods=["POST"]
+)
+@login_required
+def new_project():
+
+    name = request.form.get(
+        "name",
+        ""
+    ).strip()
+
+    description = request.form.get(
+        "description",
+        ""
+    ).strip()
+
+    if not name:
+
+        flash(
+            "Project name is required.",
+            "error"
+        )
+
+        return redirect(
+            url_for("dashboard")
+        )
+
+    database.create_project(
+        session["user_id"],
+        name,
+        description or None
+    )
+
+    flash(
+        "Project created.",
+        "success"
+    )
+
+    return redirect(
+        url_for("dashboard")
+    )
+
+
+# ============================================================
+# PROJECT DETAIL
+# ============================================================
+
+@app.route("/project/<int:project_id>")
+@login_required
+def project_detail(project_id):
+
+    project = database.get_project(
+        project_id,
+        session["user_id"]
+    )
+
+    if not project:
+
+        flash(
+            "Project not found.",
+            "error"
+        )
+
+        return redirect(
+            url_for("dashboard")
+        )
+
+    runs = database.list_analysis_runs(
+        project_id
+    )
+
+    return render_template(
+        "project_detail.html",
+        project=project,
+        runs=runs
+    )
+
+
+# ============================================================
 # UPLOAD DATASET
 # ============================================================
 
@@ -189,6 +541,26 @@ def upload_dataset():
     # --------------------------------------------------------
 
     if request.method == "GET":
+
+        project_id = request.args.get(
+            "project_id",
+            type=int
+        )
+
+        if project_id and "user_id" in session:
+
+            project = database.get_project(
+                project_id,
+                session["user_id"]
+            )
+
+            if project:
+                session["active_project_id"] = project_id
+            else:
+                session.pop(
+                    "active_project_id",
+                    None
+                )
 
         return render_template(
             "upload.html"
@@ -1518,6 +1890,802 @@ def clustering():
         objective=objective,
 
         result=clustering_results
+    )
+
+
+# ============================================================
+# EXPLAINABILITY
+# ============================================================
+
+@app.route(
+    "/explainability",
+    methods=["POST"]
+)
+def explainability():
+
+    # --------------------------------------------------------
+    # INPUT
+    # --------------------------------------------------------
+
+    filename = request.form.get(
+        "filename",
+        ""
+    ).strip()
+
+    target_column = request.form.get(
+        "target",
+        ""
+    ).strip()
+
+    problem_type = request.form.get(
+        "problem_type",
+        ""
+    ).strip()
+
+    objective = request.form.get(
+        "objective",
+        ""
+    ).strip()
+
+    selected_model = request.form.get(
+        "selected_model",
+        ""
+    ).strip()
+
+    # --------------------------------------------------------
+    # VALIDATION
+    # --------------------------------------------------------
+
+    if not filename:
+
+        return (
+            "Dataset information is missing."
+        )
+
+    if not problem_type:
+
+        return (
+            "Problem type information is missing."
+        )
+
+    filename = secure_filename(
+        filename
+    )
+
+    filepath = os.path.join(
+        app.config["UPLOAD_FOLDER"],
+        filename
+    )
+
+    if not os.path.exists(filepath):
+
+        return (
+            "Dataset file not found."
+        )
+
+    # --------------------------------------------------------
+    # LOAD DATASET
+    # --------------------------------------------------------
+
+    try:
+
+        df = load_dataset(filepath)
+
+    except Exception as e:
+
+        return (
+            "Unable to read dataset: "
+            f"{str(e)}"
+        )
+
+    # ========================================================
+    # CLUSTERING EXPLAINABILITY (PROFILES ALREADY COMPUTED)
+    # ========================================================
+
+    if problem_type == "Clustering":
+
+        return render_template(
+            "explainability.html",
+            filename=filename,
+            target_column=None,
+            problem_type=problem_type,
+            objective=objective,
+            is_clustering=True,
+            shap_result=None
+        )
+
+    # ========================================================
+    # SUPERVISED EXPLAINABILITY (SHAP)
+    # ========================================================
+
+    if not target_column:
+
+        return (
+            "No target variable was provided."
+        )
+
+    if not selected_model:
+
+        # Retrain all models and pick the best one
+        try:
+
+            training = train_models(
+                df,
+                target_column,
+                problem_type
+            )
+
+            best = select_best_model(
+                training["results"],
+                problem_type
+            )
+
+            if best is None:
+                return (
+                    "Unable to select a model for "
+                    "explanation."
+                )
+
+            selected_model = best["name"]
+
+        except Exception as e:
+
+            return (
+                "Unable to select a model: "
+                f"{str(e)}"
+            )
+
+    # --------------------------------------------------------
+    # RETRAIN THE SELECTED MODEL
+    # --------------------------------------------------------
+
+    try:
+
+        fitted = train_named_model(
+            df,
+            target_column,
+            problem_type,
+            selected_model
+        )
+
+    except Exception as e:
+
+        return (
+            "Unable to retrain the model: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # CHART OUTPUT PATH
+    # --------------------------------------------------------
+
+    chart_base = (
+        os.path.splitext(
+            filename
+        )[0]
+        .replace(" ", "_")
+        .replace("/", "_")
+        .replace("\\", "_")
+    )
+
+    # --------------------------------------------------------
+    # SHAP EXPLANATION
+    # --------------------------------------------------------
+
+    try:
+
+        shap_result = perform_explainability(
+            df,
+            target_column,
+            problem_type,
+            pipeline=fitted["pipeline"],
+            X=fitted["X_test"],
+            y=fitted["y_test"],
+            charts_dir=app.config[
+                "CHARTS_FOLDER"
+            ],
+            chart_id=f"{chart_base}_{selected_model}"
+        )
+
+    except Exception as e:
+
+        return (
+            "Unable to explain the model: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # RESULTS PAGE
+    # --------------------------------------------------------
+
+    return render_template(
+        "explainability.html",
+        filename=filename,
+        target_column=target_column,
+        problem_type=problem_type,
+        objective=objective,
+        selected_model=selected_model,
+        is_clustering=False,
+        shap_result=shap_result
+    )
+
+
+# ============================================================
+# AI EXPLANATION
+# ============================================================
+
+@app.route(
+    "/ai-explanation",
+    methods=["POST"]
+)
+def ai_explanation():
+
+    # --------------------------------------------------------
+    # INPUT
+    # --------------------------------------------------------
+
+    filename = request.form.get(
+        "filename",
+        ""
+    ).strip()
+
+    target_column = request.form.get(
+        "target",
+        ""
+    ).strip()
+
+    problem_type = request.form.get(
+        "problem_type",
+        ""
+    ).strip()
+
+    objective = request.form.get(
+        "objective",
+        ""
+    ).strip()
+
+    selected_model = request.form.get(
+        "selected_model",
+        ""
+    ).strip()
+
+    # --------------------------------------------------------
+    # VALIDATION
+    # --------------------------------------------------------
+
+    if not filename:
+
+        return (
+            "Dataset information is missing."
+        )
+
+    if not problem_type:
+
+        return (
+            "Problem type information is missing."
+        )
+
+    filename = secure_filename(
+        filename
+    )
+
+    filepath = os.path.join(
+        app.config["UPLOAD_FOLDER"],
+        filename
+    )
+
+    if not os.path.exists(filepath):
+
+        return (
+            "Dataset file not found."
+        )
+
+    # --------------------------------------------------------
+    # LOAD DATASET
+    # --------------------------------------------------------
+
+    try:
+
+        df = load_dataset(filepath)
+
+    except Exception as e:
+
+        return (
+            "Unable to read dataset: "
+            f"{str(e)}"
+        )
+
+    # ========================================================
+    # BUILD STRUCTURED CONTEXT
+    # ========================================================
+
+    context = {
+        "problem_type": problem_type,
+        "target": target_column or None,
+        "model": selected_model or None,
+        "objective": objective or None,
+        "data_quality": None,
+        "metrics": None,
+        "top_features": [],
+        "feature_importance": [],
+        "cluster_profiles": None,
+        "evaluation_notes": None,
+        "n_clusters": None
+    }
+
+    # ------------------------------------------------
+    # CLUSTERING
+    # ------------------------------------------------
+
+    if problem_type == "Clustering":
+
+        try:
+
+            cluster_result = perform_clustering(
+                df,
+                objective=(
+                    objective
+                    if objective
+                    else None
+                )
+            )
+
+            if cluster_result.get("success"):
+
+                context["n_clusters"] = (
+                    cluster_result["n_clusters"]
+                )
+
+                context["top_features"] = [
+                    item["column"]
+                    for item in cluster_result[
+                        "distinguishing_features"
+                    ][:6]
+                ]
+
+                context["cluster_profiles"] = [
+                    {
+                        "cluster": p["cluster"],
+                        "size": p["size"],
+                        "features": [
+                            {
+                                "column": f["column"],
+                                "value": (
+                                    f["mean"]
+                                    if f["type"] == "numerical"
+                                    else f["dominant"]
+                                )
+                            }
+                            for f in p["features"][:6]
+                        ]
+                    }
+                    for p in cluster_result[
+                        "profiles"
+                    ]
+                ]
+
+                context["evaluation_notes"] = (
+                    f"Clusters were selected using the "
+                    f"silhouette score (K="
+                    f"{cluster_result['n_clusters']}). "
+                    "Clusters are discovered patterns, "
+                    "not ground-truth labels."
+                )
+
+        except Exception:
+            pass
+
+    # ------------------------------------------------
+    # SUPERVISED
+    # ------------------------------------------------
+
+    else:
+
+        if not target_column:
+            return (
+                "No target variable was provided."
+            )
+
+        if not selected_model:
+
+            try:
+
+                training = train_models(
+                    df,
+                    target_column,
+                    problem_type
+                )
+
+                best = select_best_model(
+                    training["results"],
+                    problem_type
+                )
+
+                if best is not None:
+                    selected_model = best["name"]
+
+            except Exception:
+                pass
+
+        if selected_model:
+
+            context["model"] = selected_model
+
+            try:
+
+                fitted = train_named_model(
+                    df,
+                    target_column,
+                    problem_type,
+                    selected_model
+                )
+
+                # ----- SHAP / importance -----
+                shap_result = perform_explainability(
+                    df,
+                    target_column,
+                    problem_type,
+                    pipeline=fitted["pipeline"],
+                    X=fitted["X_test"],
+                    y=fitted["y_test"]
+                )
+
+                context["top_features"] = (
+                    shap_result.get("top_features", [])
+                )
+
+                context["feature_importance"] = (
+                    shap_result.get(
+                        "feature_importance",
+                        []
+                    )[:6]
+                )
+
+                # ----- Metrics -----
+                from modules.model_trainer import (
+                    get_classification_models,
+                    get_regression_models
+                )
+
+                from sklearn.metrics import (
+                    accuracy_score,
+                    f1_score,
+                    precision_score,
+                    recall_score,
+                    r2_score,
+                    mean_absolute_error,
+                    mean_squared_error
+                )
+
+                y_pred = fitted["pipeline"].predict(
+                    fitted["X_test"]
+                )
+
+                y_true = fitted["y_test"]
+
+                if problem_type == "Classification":
+
+                    context["metrics"] = {
+                        "accuracy": round(
+                            float(
+                                accuracy_score(
+                                    y_true,
+                                    y_pred
+                                )
+                            ),
+                            3
+                        ),
+                        "f1_score": round(
+                            float(
+                                f1_score(
+                                    y_true,
+                                    y_pred,
+                                    average="macro",
+                                    zero_division=0
+                                )
+                            ),
+                            3
+                        ),
+                        "precision": round(
+                            float(
+                                precision_score(
+                                    y_true,
+                                    y_pred,
+                                    average="macro",
+                                    zero_division=0
+                                )
+                            ),
+                            3
+                        ),
+                        "recall": round(
+                            float(
+                                recall_score(
+                                    y_true,
+                                    y_pred,
+                                    average="macro",
+                                    zero_division=0
+                                )
+                            ),
+                            3
+                        )
+                    }
+
+                else:
+
+                    context["metrics"] = {
+                        "r2": round(
+                            float(
+                                r2_score(
+                                    y_true,
+                                    y_pred
+                                )
+                            ),
+                            3
+                        ),
+                        "mae": round(
+                            float(
+                                mean_absolute_error(
+                                    y_true,
+                                    y_pred
+                                )
+                            ),
+                            3
+                        ),
+                        "rmse": round(
+                            float(
+                                mean_squared_error(
+                                    y_true,
+                                    y_pred,
+                                    squared=False
+                                )
+                            ),
+                            3
+                        )
+                    }
+
+            except Exception:
+                pass
+
+    # ========================================================
+    # GENERATE EXPLANATION (OKF-aware)
+    # ========================================================
+
+    explanation_result = generate_explanation(
+        context,
+        use_okf=True,
+        okf_manager=okf_manager
+    )
+
+    # --------------------------------------------------------
+    # RESULTS PAGE
+    # --------------------------------------------------------
+
+    return render_template(
+        "ai_explanation.html",
+        filename=filename,
+        target_column=target_column or None,
+        problem_type=problem_type,
+        objective=objective,
+        selected_model=selected_model or None,
+        context=context,
+        explanation_result=explanation_result,
+        api_configured=bool(get_api_key())
+    )
+
+
+# ============================================================
+# OKF STATUS
+# ============================================================
+
+@app.route("/okf")
+def okf_status():
+
+    return render_template(
+        "okf_status.html",
+        summary=okf_summary()
+    )
+
+
+# ============================================================
+# FINAL REPORT
+# ============================================================
+
+@app.route(
+    "/report",
+    methods=["POST"]
+)
+def report():
+
+    # --------------------------------------------------------
+    # INPUT
+    # --------------------------------------------------------
+
+    filename = request.form.get(
+        "filename",
+        ""
+    ).strip()
+
+    target_column = request.form.get(
+        "target",
+        ""
+    ).strip()
+
+    problem_type = request.form.get(
+        "problem_type",
+        ""
+    ).strip()
+
+    objective = request.form.get(
+        "objective",
+        ""
+    ).strip()
+
+    selected_model = request.form.get(
+        "selected_model",
+        ""
+    ).strip()
+
+    explanation = request.form.get(
+        "explanation",
+        ""
+    ).strip()
+
+    # --------------------------------------------------------
+    # VALIDATION
+    # --------------------------------------------------------
+
+    if not filename:
+
+        return (
+            "Dataset information is missing."
+        )
+
+    if not problem_type:
+
+        return (
+            "Problem type information is missing."
+        )
+
+    filename = secure_filename(
+        filename
+    )
+
+    filepath = os.path.join(
+        app.config["UPLOAD_FOLDER"],
+        filename
+    )
+
+    if not os.path.exists(filepath):
+
+        return (
+            "Dataset file not found."
+        )
+
+    # --------------------------------------------------------
+    # LOAD DATASET
+    # --------------------------------------------------------
+
+    try:
+
+        df = load_dataset(filepath)
+
+    except Exception as e:
+
+        return (
+            "Unable to read dataset: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # COLLECT REPORT DATA
+    # --------------------------------------------------------
+
+    try:
+
+        report_data = collect_report_data(
+            df,
+            filename,
+            objective,
+            target_column,
+            problem_type,
+            explanation,
+            selected_model=(
+                selected_model
+                if selected_model
+                else None
+            )
+        )
+
+    except Exception as e:
+
+        return (
+            "Unable to generate report: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # SAVE + RENDER
+    # --------------------------------------------------------
+
+    try:
+
+        html_path, html_content = save_report(
+            report_data,
+            app.config["REPORTS_FOLDER"]
+        )
+
+    except Exception as e:
+
+        return (
+            "Unable to save report: "
+            f"{str(e)}"
+        )
+
+    # --------------------------------------------------------
+    # SAVE ANALYSIS RUN (when logged in)
+    # --------------------------------------------------------
+
+    run_id = None
+
+    project_id = session.get(
+        "active_project_id"
+    )
+
+    if project_id and "user_id" in session:
+
+        project = database.get_project(
+            project_id,
+            session["user_id"]
+        )
+
+        if project:
+
+            run_id = database.create_analysis_run(
+                project_id,
+                filename,
+                problem_type,
+                objective=(
+                    objective
+                    if objective
+                    else None
+                ),
+                target_column=(
+                    target_column
+                    if target_column
+                    else None
+                ),
+                selected_model=(
+                    selected_model
+                    if selected_model
+                    else None
+                ),
+                explanation=(
+                    explanation
+                    if explanation
+                    else None
+                ),
+                status="completed"
+            )
+
+    return render_template(
+        "report.html",
+        report=report_data,
+        report_saved=True,
+        run_id=run_id,
+        project_id=project_id
+    )
+
+
+# ============================================================
+# SERVE SAVED REPORTS
+# ============================================================
+
+@app.route("/reports/<path:report_filename>")
+def serve_report(report_filename):
+
+    return send_from_directory(
+        app.config["REPORTS_FOLDER"],
+        report_filename
     )
 
 

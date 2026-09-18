@@ -18,5 +18,8 @@ instance/
 # Generated analysis artifacts
 results/
 
+# OKF knowledge store (runtime-generated)
+okf_knowledge/
+
 # VS Code settings
 .vscode/

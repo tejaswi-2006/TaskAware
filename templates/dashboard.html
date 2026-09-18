@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>TaskAware | Dashboard</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .flash-error {
+            background: #fdecea;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        .flash-success {
+            background: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            color: #2e7d32;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        .flash-info {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            color: #1565c0;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        .flash-warning {
+            background: #fff8e1;
+            border: 1px solid #ffe082;
+            color: #9a6700;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            font-size: 15px;
+            box-sizing: border-box;
+            margin-top: 4px;
+        }
+
+        textarea {
+            min-height: 60px;
+        }
+
+        button {
+            padding: 11px 20px;
+            font-size: 15px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #f3f3f3;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }
+
+        .meta {
+            color: #555;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <div class="topbar">
+
+        <h1>
+            TaskAware Dashboard
+        </h1>
+
+        <span>
+            <strong>{{ username }}</strong>
+            &nbsp;|&nbsp;
+            <a href="/upload">
+                New Analysis
+            </a>
+            &nbsp;|&nbsp;
+            <a href="/okf">
+                OKF
+            </a>
+            &nbsp;|&nbsp;
+            <a href="/logout">
+                Logout
+            </a>
+        </span>
+
+    </div>
+
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+
+    {% for category, message in messages %}
+
+    <div class="flash-{{ category }}">
+        {{ message }}
+    </div>
+
+    {% endfor %}
+
+    {% endwith %}
+
+
+    <!-- ================================================= -->
+    <!-- NEW PROJECT -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Create New Project
+        </h2>
+
+        <form method="POST" action="/project/new">
+
+            <label>
+                Project Name
+            </label>
+
+            <input
+                type="text"
+                name="name"
+                required
+            >
+
+            <label>
+                Description (Optional)
+            </label>
+
+            <textarea
+                name="description"
+            ></textarea>
+
+            <button type="submit">
+                Create Project
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- PROJECTS -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Your Projects
+        </h2>
+
+        {% if projects %}
+
+        <table>
+
+            <tr>
+                <th>Project</th>
+                <th>Description</th>
+                <th>Analysis Runs</th>
+                <th>Created</th>
+            </tr>
+
+            {% for project in projects %}
+
+            <tr>
+
+                <td>
+                    <a href="/project/{{ project['id'] }}">
+                        {{ project["name"] }}
+                    </a>
+                </td>
+
+                <td>
+                    {{ project["description"] or "-" }}
+                </td>
+
+                <td>
+                    {{ project["run_count"] }}
+                </td>
+
+                <td>
+                    {{ project["created_at"] }}
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% else %}
+
+        <p class="meta">
+            No projects yet. Create one to begin.
+        </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- START ANALYSIS -->
+    <!-- ================================================= -->
+
+    <div class="card">
+
+        <h2>
+            Start a New Analysis
+        </h2>
+
+        <p>
+            Upload a dataset and run the full TaskAware
+            workflow: validation, EDA, target intelligence,
+            preprocessing, model/cluster evaluation,
+            explainability and reporting.
+        </p>
+
+        <a href="/upload">
+            <button>
+                Upload Dataset
+            </button>
+        </a>
+
+    </div>
+
+</body>
+
+</html>

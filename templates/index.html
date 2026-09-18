@@ -1,23 +1,176 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
     <title>TaskAware</title>
+
+    <style>
+
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            max-width: 900px;
+            margin: 60px auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #222;
+        }
+
+        h1 {
+            font-size: 42px;
+            margin-bottom: 5px;
+        }
+
+        .tagline {
+            color: #555;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 18px 0;
+        }
+
+        .features {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .feature {
+            flex: 1;
+            min-width: 220px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 16px;
+            background: #fafafa;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background: #333;
+            color: #fff;
+        }
+
+        .ghost {
+            background: #fff;
+            color: #333;
+            border: 1px solid #333;
+        }
+
+    </style>
+
 </head>
+
 
 <body>
 
-    <h1>Welcome to TaskAware</h1>
+    <h1>
+        TaskAware
+    </h1>
 
-    <p>
-        An intelligent system for dataset analysis and
-        target variable recommendation.
+    <p class="tagline">
+        An intelligent end-to-end framework for automated
+        dataset analysis, ML task recommendation and
+        explainable machine learning.
     </p>
 
-    <a href="/upload">
-    <button>Start Analysis</button>
-</a>
+    <div class="card">
+
+        <p>
+            Upload a tabular dataset and TaskAware guides
+            you through the full workflow:
+        </p>
+
+        <div class="features">
+
+            <div class="feature">
+                <strong>Understand</strong><br>
+                Validation and exploratory data analysis
+            </div>
+
+            <div class="feature">
+                <strong>Define</strong><br>
+                Target recommendation and problem-type
+                detection
+            </div>
+
+            <div class="feature">
+                <strong>Model</strong><br>
+                Classification, regression or clustering
+                with leakage-safe preprocessing
+            </div>
+
+            <div class="feature">
+                <strong>Explain</strong><br>
+                SHAP, cluster profiles and AI-generated
+                interpretation
+            </div>
+
+            <div class="feature">
+                <strong>Report</strong><br>
+                Complete analytical report
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="card">
+
+        {% if session.get("user_id") %}
+
+        <p>
+            Welcome back,
+            <strong>{{ session.get("username") }}</strong>.
+        </p>
+
+        <a href="/dashboard">
+            <button>
+                Go to Dashboard
+            </button>
+        </a>
+
+        &nbsp;
+
+        <a href="/upload">
+            <button class="ghost">
+                Start New Analysis
+            </button>
+        </a>
+
+        {% else %}
+
+        <a href="/login">
+            <button>
+                Log In
+            </button>
+        </a>
+
+        &nbsp;
+
+        <a href="/register">
+            <button class="ghost">
+                Create Account
+            </button>
+        </a>
+
+        {% endif %}
+
+    </div>
 
 </body>
+
 </html>

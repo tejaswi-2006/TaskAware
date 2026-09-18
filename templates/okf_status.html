@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>TaskAware | OKF Knowledge Store</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #f3f3f3;
+        }
+
+        .meta {
+            color: #555;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <h1>
+        OKF Knowledge Store
+    </h1>
+
+    <p class="meta">
+        Organised Knowledge Framework — reusable explanation
+        layer for TaskAware.
+    </p>
+
+
+    <div class="card">
+
+        <h2>
+            Summary
+        </h2>
+
+        <p>
+            <strong>
+                Total knowledge entries:
+            </strong>
+
+            {{ summary["total_entries"] }}
+        </p>
+
+        <p class="meta">
+            Each entry stores a previously generated
+            explanation. When a new analysis matches an
+            existing entry, the explanation is reused
+            instead of calling the LLM again.
+        </p>
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>
+            Stored Knowledge
+        </h2>
+
+        {% if summary["entries"] %}
+
+        <table>
+
+            <tr>
+                <th>Key</th>
+                <th>Problem Type</th>
+                <th>Target</th>
+                <th>Model</th>
+                <th>Source</th>
+            </tr>
+
+            {% for entry in summary["entries"] %}
+
+            <tr>
+
+                <td>{{ entry["key"] }}</td>
+
+                <td>{{ entry["problem_type"] or "-" }}</td>
+
+                <td>{{ entry["target"] or "-" }}</td>
+
+                <td>{{ entry["model"] or "-" }}</td>
+
+                <td>{{ entry["source"] }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% else %}
+
+        <p>
+            The knowledge store is currently empty.
+            Explanations are added automatically after
+            each analysis.
+        </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <br>
+
+    <a href="/upload">
+        ← Upload Another Dataset
+    </a>
+
+</body>
+
+</html>

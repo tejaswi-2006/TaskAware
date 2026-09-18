@@ -533,3 +533,88 @@ def train_models(
     raise ValueError(
         f"Unsupported problem type: {problem_type}"
     )
+
+
+# ============================================================
+# TRAIN A SINGLE NAMED MODEL
+# ============================================================
+
+def train_named_model(
+    df,
+    target_column,
+    problem_type,
+    model_name,
+    test_size=0.2
+):
+    """
+    Retrain a single named model so that explainability
+    can use the fitted pipeline.
+
+    Returns
+    -------
+    dict
+        pipeline, X_train, y_train, X_test, y_test,
+        target_info, roles, model_name.
+    """
+
+    roles_result = _prepare_data(
+        df,
+        target_column,
+        problem_type
+    )
+
+    X = roles_result["X"]
+    y = roles_result["y"]
+    target_info = roles_result["target_info"]
+    roles = roles_result["roles"]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=test_size,
+        random_state=42,
+        stratify=(
+            y
+            if problem_type == "Classification"
+            else None
+        )
+    )
+
+    models = (
+        get_classification_models()
+        if problem_type == "Classification"
+        else get_regression_models()
+    )
+
+    config = next(
+        (
+            m for m in models
+            if m["name"] == model_name
+        ),
+        models[0]
+    )
+
+    pipeline, _, _ = train_and_evaluate(
+        X_train,
+        y_train,
+        X_test,
+        y_test,
+        config,
+        problem_type,
+        n_classes=(
+            len(np.unique(y))
+            if problem_type == "Classification"
+            else 1
+        )
+    )
+
+    return {
+        "pipeline": pipeline,
+        "X_train": X_train,
+        "y_train": y_train,
+        "X_test": X_test,
+        "y_test": y_test,
+        "target_info": target_info,
+        "roles": roles,
+        "model_name": config["name"]
+    }

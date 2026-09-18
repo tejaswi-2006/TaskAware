@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>TaskAware | Final Report</title>
+
+    <style>
+
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            max-width: 1050px;
+            margin: 30px auto;
+            padding: 30px;
+            line-height: 1.6;
+            color: #222;
+        }
+
+        h1 {
+            border-bottom: 3px solid #333;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 6px;
+            margin-top: 30px;
+        }
+
+        h3 {
+            margin-top: 18px;
+        }
+
+        .meta {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin: 16px 0;
+            page-break-inside: avoid;
+        }
+
+        .summary {
+            background: #f7f7f7;
+            border: 2px solid #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 7px 9px;
+            text-align: left;
+        }
+
+        th {
+            background: #f0f0f0;
+        }
+
+        .explanation {
+            background: #fafafa;
+            border-left: 4px solid #333;
+            padding: 14px 18px;
+            white-space: pre-wrap;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            background: #333;
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        @media print {
+            body { margin: 0; padding: 20px; }
+            .noprint { display: none; }
+        }
+
+        button {
+            padding: 11px 20px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <h1>
+        TaskAware Analytical Report
+    </h1>
+
+    <p class="meta">
+        Generated: {{ report["generated_at"] }}
+    </p>
+
+
+    <!-- ================================================= -->
+    <!-- 1. EXECUTIVE SUMMARY -->
+    <!-- ================================================= -->
+
+    <div class="card summary">
+
+        <h2>
+            1. Executive Summary
+        </h2>
+
+        <p>
+            <strong>Dataset:</strong>
+            {{ report["filename"] }}
+            ({{ report["n_rows"] }} rows,
+            {{ report["n_columns"] }} columns)
+        </p>
+
+        {% if report["objective"] %}
+        <p>
+            <strong>Objective:</strong>
+            {{ report["objective"] }}
+        </p>
+        {% endif %}
+
+        <p>
+            <strong>Problem Type:</strong>
+            {{ report["problem_type"] }}
+        </p>
+
+        {% if report["target_column"] %}
+        <p>
+            <strong>Target:</strong>
+            {{ report["target_column"] }}
+        </p>
+        {% endif %}
+
+        {% if report["model_results"] and report["model_results"].get("best_model") %}
+        <p>
+            <strong>Selected Model:</strong>
+            {{ report["model_results"]["best_model"].get("name") }}
+        </p>
+        {% endif %}
+
+        {% if report["model_results"] and report["model_results"].get("n_clusters") %}
+        <p>
+            <strong>Clusters:</strong>
+            {{ report["model_results"]["n_clusters"] }}
+        </p>
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- 2. DATA QUALITY -->
+    <!-- ================================================= -->
+
+    <h2>
+        2. Data Quality
+    </h2>
+
+    <div class="card">
+
+        <table>
+
+            <tr>
+                <td><strong>Rows</strong></td>
+                <td>{{ report["data_quality"]["rows"] }}</td>
+            </tr>
+
+            <tr>
+                <td><strong>Columns</strong></td>
+                <td>{{ report["data_quality"]["columns"] }}</td>
+            </tr>
+
+            <tr>
+                <td><strong>Duplicate Rows</strong></td>
+                <td>{{ report["data_quality"]["duplicate_rows"] }}</td>
+            </tr>
+
+            <tr>
+                <td><strong>Missing Cells</strong></td>
+                <td>
+                    {{ report["data_quality"]["missing_cells"] }}
+                    ({{ report["data_quality"]["missing_ratio"] }})
+                </td>
+            </tr>
+
+            <tr>
+                <td><strong>Constant Columns</strong></td>
+                <td>
+                    {{ report["data_quality"]["constant_columns"] | join(", ") if report["data_quality"]["constant_columns"] else "None" }}
+                </td>
+            </tr>
+
+            <tr>
+                <td><strong>Possible ID Columns</strong></td>
+                <td>
+                    {{ report["data_quality"]["possible_id_columns"] | join(", ") if report["data_quality"]["possible_id_columns"] else "None" }}
+                </td>
+            </tr>
+
+        </table>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- 3. TARGET -->
+    <!-- ================================================= -->
+
+    <h2>
+        3. Target Variable
+    </h2>
+
+    <div class="card">
+
+        {% if report["target_column"] %}
+
+        <p>
+            <strong>Target:</strong>
+            {{ report["target_column"] }}
+        </p>
+
+        {% if report["eda"]["target_analysis"] %}
+        {% set ta = report["eda"]["target_analysis"] %}
+
+        {% if report["problem_type"] == "Classification" %}
+
+        <p>
+            <strong>Classes:</strong>
+            {{ ta["class_count"] }}
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Class</th>
+                <th>Count</th>
+                <th>Percentage</th>
+            </tr>
+
+            {% for item in ta["distribution"] %}
+
+            <tr>
+                <td>{{ item["class"] }}</td>
+                <td>{{ item["count"] }}</td>
+                <td>{{ item["percentage"] }}%</td>
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% else %}
+
+        <p>
+            <strong>Mean:</strong>
+            {{ ta["mean"] }}
+            &nbsp;|&nbsp;
+            <strong>Median:</strong>
+            {{ ta["median"] }}
+            &nbsp;|&nbsp;
+            <strong>Std:</strong>
+            {{ ta["std"] }}
+            &nbsp;|&nbsp;
+            <strong>Range:</strong>
+            {{ ta["min"] }} – {{ ta["max"] }}
+        </p>
+
+        {% endif %}
+
+        {% endif %}
+
+        {% else %}
+
+        <p>
+            No supervised target. This analysis used
+            clustering to discover groups in the data.
+        </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- 4. DATA PREPARATION -->
+    <!-- ================================================= -->
+
+    <h2>
+        4. Data Preparation
+    </h2>
+
+    <div class="card">
+
+        <ul>
+
+            {% for step in report["prep"]["steps"] %}
+
+            <li>
+                {{ step }}
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- 5. MODEL / CLUSTER RESULTS -->
+    <!-- ================================================= -->
+
+    <h2>
+        5. Results
+    </h2>
+
+    {% if report["problem_type"] == "Clustering" %}
+    {% set mr = report["model_results"] %}
+
+    <div class="card">
+
+        <p>
+            <strong>Selected configuration:</strong>
+            {{ mr["n_clusters"] }} clusters
+        </p>
+
+        <p>
+            <strong>Silhouette Score:</strong>
+            {{ mr["silhouette"] }}
+        </p>
+
+        <p>
+            <strong>Davies-Bouldin Index:</strong>
+            {{ mr["davies_bouldin"] }}
+        </p>
+
+        {% if mr["stability"] %}
+        <p>
+            <strong>Stability:</strong>
+            {{ mr["stability"]["agreement"] }}
+            ({{ "stable" if mr["stability"]["stable"] else "less stable" }})
+        </p>
+        {% endif %}
+
+        <h3>
+            K Evaluation
+        </h3>
+
+        <table>
+
+            <tr>
+                <th>K</th>
+                <th>Silhouette</th>
+                <th>Davies-Bouldin</th>
+                <th>Calinski-Harabasz</th>
+            </tr>
+
+            {% for eval in mr["evaluations"] %}
+
+            <tr>
+                <td>{{ eval["k"] }}</td>
+                <td>{{ eval["silhouette"] }}</td>
+                <td>{{ eval["davies_bouldin"] }}</td>
+                <td>{{ eval["calinski_harabasz"] }}</td>
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        <h3>
+            Cluster Profiles
+        </h3>
+
+        {% for profile in mr["profiles"] %}
+
+        <p>
+            <strong>
+                Cluster {{ profile["cluster"] }}
+            </strong>
+            ({{ profile["size"] }} samples,
+            {{ profile["size_percentage"] }}%)
+        </p>
+
+        <table>
+
+            <tr>
+                <th>Feature</th>
+                <th>Value</th>
+            </tr>
+
+            {% for feature in profile["features"] %}
+
+            <tr>
+
+                <td>{{ feature["column"] }}</td>
+
+                {% if feature["type"] == "numerical" %}
+                <td>Mean: {{ feature["mean"] }}</td>
+                {% else %}
+                <td>{{ feature["dominant"] }} ({{ feature["dominant_ratio"] }})</td>
+                {% endif %}
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% endfor %}
+
+    </div>
+
+    {% else %}
+    {% set mr = report["model_results"] %}
+    {% set results = mr["results"] if mr else [] %}
+
+    <div class="card">
+
+        {% if mr and mr.get("best_model") %}
+        {% set best = mr["best_model"] %}
+
+        <h3>
+            Selected Model
+            <span class="badge">BEST</span>
+        </h3>
+
+        <p>
+            <strong>{{ best["name"] }}</strong>
+        </p>
+
+        {% if best.get("reason") %}
+        <p>
+            {{ best["reason"] }}
+        </p>
+        {% endif %}
+
+        {% endif %}
+
+        <h3>
+            Model Comparison
+        </h3>
+
+        <table>
+
+            {% if report["problem_type"] == "Classification" %}
+
+            <tr>
+                <th>Model</th>
+                <th>CV F1</th>
+                <th>Accuracy</th>
+                <th>Precision</th>
+                <th>Recall</th>
+                <th>F1</th>
+                <th>ROC-AUC</th>
+            </tr>
+
+            {% for model in results %}
+
+            <tr>
+                <td>{{ model["name"] }}</td>
+                <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
+                <td>{{ model["accuracy"] }}</td>
+                <td>{{ model["precision"] }}</td>
+                <td>{{ model["recall"] }}</td>
+                <td>{{ model["f1"] }}</td>
+                <td>{{ model["roc_auc"] if model["roc_auc"] is not none else "-" }}</td>
+            </tr>
+
+            {% endfor %}
+
+            {% else %}
+
+            <tr>
+                <th>Model</th>
+                <th>CV R2</th>
+                <th>R2</th>
+                <th>MAE</th>
+                <th>MSE</th>
+                <th>RMSE</th>
+            </tr>
+
+            {% for model in results %}
+
+            <tr>
+                <td>{{ model["name"] }}</td>
+                <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
+                <td>{{ model["r2"] }}</td>
+                <td>{{ model["mae"] }}</td>
+                <td>{{ model["mse"] }}</td>
+                <td>{{ model["rmse"] }}</td>
+            </tr>
+
+            {% endfor %}
+
+            {% endif %}
+
+        </table>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- 6. EXPLANATION -->
+    <!-- ================================================= -->
+
+    <h2>
+        6. Interpretation
+    </h2>
+
+    <div class="card">
+
+        {% if report["explanation"] %}
+
+        <div class="explanation">
+            {{ report["explanation"] }}
+        </div>
+
+        {% else %}
+
+        <p>
+            No explanation was generated for this analysis.
+        </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- 7. CONCLUSION -->
+    <!-- ================================================= -->
+
+    <h2>
+        7. Conclusion
+    </h2>
+
+    <div class="card">
+
+        <p>
+            TaskAware completed a full workflow on
+            <strong>{{ report["filename"] }}</strong>:
+            dataset validation, target identification,
+            detailed EDA, leakage-safe preprocessing,
+            and {{ report["problem_type"].lower() }}
+            analysis.
+        </p>
+
+        {% if report["model_results"] and report["model_results"].get("best_model") %}
+
+        <p>
+            The model
+            <strong>
+                {{ report["model_results"]["best_model"].get("name") }}
+            </strong>
+            was selected based on cross-validated
+            evaluation. Interpretability was provided
+            through SHAP feature contributions, and the
+            results were explained in plain language.
+        </p>
+
+        {% endif %}
+
+        <p>
+            These findings are based on the uploaded
+            dataset. They should be validated further
+            before any operational decision.
+        </p>
+
+    </div>
+
+
+    <hr>
+
+    <p class="meta">
+        Report generated automatically by TaskAware.
+    </p>
+
+    <div class="noprint">
+
+        <br>
+
+        <button onclick="window.print()">
+            Print / Save as PDF
+        </button>
+
+        {% if project_id %}
+        &nbsp;
+        <a href="/project/{{ project_id }}">
+            <button>View Project</button>
+        </a>
+        {% endif %}
+
+        &nbsp;
+
+        <a href="/upload">
+            <button>Upload Another Dataset</button>
+        </a>
+
+    </div>
+
+</body>
+
+</html>

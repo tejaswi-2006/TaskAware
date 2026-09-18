@@ -1,0 +1,254 @@
+import os
+from datetime import datetime
+
+import pandas as pd
+
+
+# ============================================================
+# REPORT DATA COLLECTION
+# ============================================================
+
+def collect_report_data(
+    df,
+    filename,
+    objective,
+    target_column,
+    problem_type,
+    explanation,
+    selected_model=None
+):
+    """
+    Collect all structured information needed for the
+    final report.
+
+    This function recomputes the pipeline results so the
+    report is self-contained and reflects the current
+    dataset.
+    """
+
+    from modules.data_validator import validate_dataset
+    from modules.detailed_eda import perform_detailed_eda
+    from modules.preprocessing import prepare_preprocessing
+
+    rows, columns = df.shape
+
+    data_quality = {
+        "rows": rows,
+        "columns": columns,
+        "duplicate_rows": int(
+            df.duplicated().sum()
+        ),
+        "missing_cells": int(
+            df.isnull().sum().sum()
+        ),
+        "missing_ratio": round(
+            float(
+                df.isnull().sum().sum() /
+                (rows * columns)
+            ),
+            4
+        )
+    }
+
+    validation = validate_dataset(df)
+
+    data_quality["constant_columns"] = (
+        validation.get("constant_columns", [])
+    )
+
+    data_quality["possible_id_columns"] = (
+        validation.get("possible_id_columns", [])
+    )
+
+    # ------------------------------------------------
+    # DETAILED EDA
+    # ------------------------------------------------
+
+    eda = perform_detailed_eda(
+        df,
+        target_column=(
+            target_column
+            if problem_type != "Clustering"
+            else None
+        ),
+        problem_type=problem_type
+    )
+
+    # ------------------------------------------------
+    # PREPROCESSING
+    # ------------------------------------------------
+
+    prep = prepare_preprocessing(
+        df,
+        target_column,
+        problem_type
+    )
+
+    # ------------------------------------------------
+    # MODEL RESULTS
+    # ------------------------------------------------
+
+    model_results = None
+
+    if problem_type == "Clustering":
+
+        from modules.clustering import perform_clustering
+
+        cluster_result = perform_clustering(
+            df,
+            objective=(
+                objective
+                if objective
+                else None
+            )
+        )
+
+        model_results = {
+            "problem_type": "Clustering",
+            "success": cluster_result.get("success"),
+            "n_clusters": cluster_result.get("n_clusters"),
+            "silhouette": (
+                cluster_result.get("best", {}).get(
+                    "silhouette"
+                )
+                if cluster_result.get("best")
+                else None
+            ),
+            "davies_bouldin": (
+                cluster_result.get("best", {}).get(
+                    "davies_bouldin"
+                )
+                if cluster_result.get("best")
+                else None
+            ),
+            "stability": cluster_result.get("stability"),
+            "profiles": cluster_result.get("profiles"),
+            "evaluations": cluster_result.get(
+                "evaluations"
+            )
+        }
+
+    else:
+
+        from modules.model_trainer import train_models
+        from modules.model_selector import select_best_model
+
+        training = train_models(
+            df,
+            target_column,
+            problem_type
+        )
+
+        best = select_best_model(
+            training["results"],
+            problem_type
+        )
+
+        model_results = {
+            "problem_type": problem_type,
+            "target_column": target_column,
+            "best_model": best,
+            "results": training["results"],
+            "n_classes": training.get("n_classes"),
+            "X_train_shape": training["X_train_shape"],
+            "X_test_shape": training["X_test_shape"]
+        }
+
+        if selected_model and not best:
+            model_results["best_model"] = {
+                "name": selected_model
+            }
+
+    # ------------------------------------------------
+    # REPORT
+    # ------------------------------------------------
+
+    return {
+        "filename": filename,
+        "objective": objective or None,
+        "target_column": (
+            target_column
+            if problem_type != "Clustering"
+            else None
+        ),
+        "problem_type": problem_type,
+        "selected_model": selected_model,
+        "data_quality": data_quality,
+        "validation": validation,
+        "eda": eda,
+        "prep": prep,
+        "model_results": model_results,
+        "explanation": explanation,
+        "generated_at": datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        ),
+        "columns": list(df.columns),
+        "n_rows": rows,
+        "n_columns": columns
+    }
+
+
+# ============================================================
+# HTML REPORT GENERATION
+# ============================================================
+
+def generate_html_report(report_data):
+    """
+    Build a complete HTML report string from the
+    structured report data.
+    """
+
+    from flask import render_template
+
+    # Render the full report template with the collected data
+    return render_template(
+        "report.html",
+        report=report_data
+    )
+
+
+# ============================================================
+# SAVE REPORT
+# ============================================================
+
+def save_report(
+    report_data,
+    reports_dir,
+    report_id=None
+):
+    """
+    Save the rendered report to disk and return the path.
+    """
+
+    os.makedirs(
+        reports_dir,
+        exist_ok=True
+    )
+
+    base = os.path.splitext(
+        report_data["filename"]
+    )[0]
+
+    if report_id:
+        base = f"{base}_{report_id}"
+
+    base = base.replace(" ", "_")
+
+    html_path = os.path.join(
+        reports_dir,
+        f"{base}_report.html"
+    )
+
+    content = generate_html_report(
+        report_data
+    )
+
+    with open(
+        html_path,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        f.write(content)
+
+    return html_path, content
