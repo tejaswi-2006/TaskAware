@@ -254,5 +254,125 @@ class TestValidator(unittest.TestCase):
         self.assertIn("review", validation["text_columns"])
 
 
+def make_enriched_data(n=60):
+    import uuid
+
+    rng = np.random.default_rng(0)
+
+    return pd.DataFrame({
+        "customer_id": [str(uuid.uuid4()) for _ in range(n)],
+        "age": rng.integers(18, 70, n).astype(float),
+        "number_of_profiles": rng.integers(1, 6, n),
+        "active": [
+            "Yes" if i % 2 == 0 else "No"
+            for i in range(n)
+        ],
+        "review": [
+            "The product worked really well and I enjoyed "
+            "using it every day"
+            if i % 2 == 0 else
+            "Terrible experience, completely broken and "
+            "disappointing service"
+            for i in range(n)
+        ],
+        "signup_date": (
+            pd.date_range("2023-01-01", periods=n, freq="D")
+            .astype(str)
+        ),
+        "account_id": [f"ACC-{i % 10:03d}" for i in range(n)],
+        "target": [0 if i % 2 == 0 else 1 for i in range(n)],
+    })
+
+
+class TestEnrichedSchema(unittest.TestCase):
+
+    REQUIRED_NEW_KEYS = [
+        "raw_dtype",
+        "semantic_type",
+        "semantic_type_likelihood",
+        "confidence",
+        "text_likelihood",
+        "date_likelihood",
+        "identifier_likelihood",
+        "group_likelihood",
+        "group_candidate",
+        "group_confidence",
+        "repeated_entity_count",
+        "max_rows_per_entity",
+        "cardinality_level",
+        "cardinality_warning",
+        "recommended_transformation",
+        "target_suitability",
+        "boolean_likelihood",
+        "boolean_encoding",
+        "warnings",
+        "evidence",
+        "unsupported_details",
+    ]
+
+    REQUIRED_OLD_KEYS = [
+        "column",
+        "role",
+        "dtype",
+        "unique_count",
+        "unique_ratio",
+        "missing_count",
+        "missing_ratio",
+        "is_target",
+        "reasons",
+        "shape",
+    ]
+
+    def test_semantic_roles(self):
+        import json
+
+        df = make_enriched_data()
+        schema = analyze_schema(df, target_column="target")
+        records = {
+            record["column"]: record
+            for record in schema["columns"]
+        }
+
+        self.assertEqual(
+            records["customer_id"]["role"], "identifier"
+        )
+        self.assertEqual(records["review"]["role"], "text")
+        self.assertEqual(
+            records["age"]["semantic_type"], "measurement"
+        )
+        self.assertEqual(
+            records["number_of_profiles"]["semantic_type"],
+            "count",
+        )
+        self.assertGreaterEqual(
+            records["active"]["boolean_likelihood"], 0.9
+        )
+        self.assertEqual(
+            records["active"]["boolean_encoding"], "yes_no"
+        )
+        self.assertEqual(records["signup_date"]["role"], "datetime")
+        self.assertTrue(
+            records["account_id"]["group_candidate"]
+        )
+        self.assertEqual(
+            records["target"]["semantic_type"], "binary_target"
+        )
+
+    def test_contract_preserved_and_serializable(self):
+        import json
+
+        df = make_enriched_data()
+        schema = analyze_schema(df, target_column="target")
+
+        for record in schema["columns"]:
+            for key in self.REQUIRED_OLD_KEYS:
+                self.assertIn(key, record)
+            for key in self.REQUIRED_NEW_KEYS:
+                self.assertIn(key, record)
+
+        # Must not raise.
+        json.dumps(schema)
+
+
 if __name__ == "__main__":
     unittest.main()

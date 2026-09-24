@@ -122,14 +122,24 @@ def cross_validate_model(
 
     try:
 
-        scores = cross_val_score(
-            pipeline,
-            X,
-            y,
-            cv=fold,
-            scoring=scoring,
-            n_jobs=-1,
-        )
+        import warnings as _warnings
+
+        with _warnings.catch_warnings():
+
+            # sklearn emits benign "Pipeline not fitted yet"
+            # FutureWarnings when validating transform
+            # columns; suppress to keep output clean.
+            _warnings.simplefilter("ignore", FutureWarning)
+            _warnings.simplefilter("ignore", UserWarning)
+
+            scores = cross_val_score(
+                pipeline,
+                X,
+                y,
+                cv=fold,
+                scoring=scoring,
+                n_jobs=-1,
+            )
 
         return {
             "mean": round(

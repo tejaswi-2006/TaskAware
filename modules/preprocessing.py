@@ -504,7 +504,15 @@ def prepare_target(
         )
 
         return encoded, {
-            "mapping": mapping,
+            # Stringify keys so target_info stays JSON
+            # serializable even for numeric labels.
+            # The raw mapping above is still used for
+            # encoding; only the reported copy changes.
+            "mapping": {
+                str(label): index
+                for label, index
+                in mapping.items()
+            },
             "classes": [
                 str(label)
                 for label in sorted_labels

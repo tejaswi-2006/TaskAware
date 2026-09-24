@@ -230,6 +230,49 @@
 
         {% endif %}
 
+
+        {% set _schema = eda_results.get("schema") %}
+
+        {% if _schema %}
+
+        <h3>Group-Aware Validation</h3>
+
+        {% if _schema.get("group_columns") %}
+
+        <p>
+            <strong>Group columns:</strong>
+            {{ _schema.get("group_columns") | join(", ") }}
+        </p>
+
+        <p class="note">
+            {{ _schema.get("validation_strategy", {}).get("strategy", "") }}.
+            {{ _schema.get("validation_strategy", {}).get("reason", "") }}.
+        </p>
+
+        {% else %}
+
+        <p class="note">
+            No repeated-entity groups detected.
+            {{ _schema.get("validation_strategy", {}).get("strategy", "") }}
+            will be used.
+        </p>
+
+        {% endif %}
+
+        {% if _schema.get("high_cardinality_columns") %}
+
+        <h3>High-Cardinality Columns</h3>
+
+        <ul>
+            {% for column in _schema.get("high_cardinality_columns") %}
+            <li>{{ column }}</li>
+            {% endfor %}
+        </ul>
+
+        {% endif %}
+
+        {% endif %}
+
     </div>
 
 
@@ -274,6 +317,147 @@
             {% endfor %}
 
         </table>
+
+    </div>
+
+
+    <!-- SEMANTIC SCHEMA ANALYSIS -->
+
+    <div class="box">
+
+        <h2>Semantic Schema Analysis</h2>
+
+        <p class="note">
+            Detected semantic type and role for each column,
+            with confidence, recommended transformation and
+            warnings. Text is never classified as an identifier
+            only because its values are highly unique.
+        </p>
+
+        {% set _records = eda_results.get("schema", {}).get("columns", []) %}
+
+        {% if _records %}
+
+        <table>
+
+            <tr>
+                <th>Column</th>
+                <th>Raw Type</th>
+                <th>Semantic Type</th>
+                <th>Role</th>
+                <th>Unique</th>
+                <th>Missing</th>
+                <th>Confidence</th>
+                <th>Recommended Transformation</th>
+            </tr>
+
+            {% for record in _records %}
+
+            <tr>
+
+                <td>{{ record.get("column") }}</td>
+
+                <td>{{ record.get("raw_dtype", record.get("dtype")) }}</td>
+
+                <td>{{ record.get("semantic_type") }}</td>
+
+                <td>{{ record.get("role") }}</td>
+
+                <td>
+                    {{ record.get("unique_count") }}
+                    ({{ record.get("unique_ratio") }})
+                </td>
+
+                <td>
+                    {{ record.get("missing_count") }}
+                    ({{ record.get("missing_ratio") }})
+                </td>
+
+                <td>{{ record.get("confidence") }}</td>
+
+                <td>{{ record.get("recommended_transformation") }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        {% for record in _records %}
+
+        <h3>{{ record.get("column") }}</h3>
+
+        <ul>
+
+            <li>
+                <strong>Target suitability:</strong>
+                {{ record.get("target_suitability", {}).get("recommendation_level", "-") }}
+                {% if record.get("target_suitability", {}).get("target_problem_type") %}
+                ({{ record.get("target_suitability", {}).get("target_problem_type") }})
+                {% endif %}
+            </li>
+
+            {% if record.get("boolean_encoding") %}
+            <li>
+                <strong>Boolean encoding:</strong>
+                {{ record.get("boolean_encoding") }}
+                (likelihood {{ record.get("boolean_likelihood") }})
+            </li>
+            {% endif %}
+
+            {% if record.get("cardinality_warning") %}
+            <li>
+                <strong>Cardinality ({{ record.get("cardinality_level") }}):</strong>
+                {{ record.get("cardinality_warning") }}
+            </li>
+            {% endif %}
+
+            {% if record.get("group_candidate") %}
+            <li>
+                <strong>Possible group candidate:</strong>
+                yes ({{ record.get("group_confidence") }} confidence,
+                {{ record.get("repeated_entity_count") }} entities,
+                up to {{ record.get("max_rows_per_entity") }} rows per entity).
+                Use group-aware validation to avoid leakage.
+            </li>
+            {% endif %}
+
+            {% if record.get("unsupported_details") %}
+            <li>
+                <strong>Unsupported column:</strong>
+                detected value types:
+                {{ record.get("unsupported_details", {}).get("detected_value_types") }}.
+                {{ record.get("unsupported_details", {}).get("reason") }}
+                Recommended action:
+                {{ record.get("unsupported_details", {}).get("recommended_action") }}
+            </li>
+            {% endif %}
+
+            {% if record.get("warnings") %}
+            <li>
+                <strong>Warnings:</strong>
+                {{ record.get("warnings") | join("; ") }}
+            </li>
+            {% endif %}
+
+            {% if record.get("evidence") %}
+            <li>
+                <strong>Evidence:</strong>
+                {{ record.get("evidence") | join("; ") }}
+            </li>
+            {% endif %}
+
+        </ul>
+
+        {% endfor %}
+
+        {% else %}
+
+        <p class="note">
+            Schema details are unavailable for this dataset.
+        </p>
+
+        {% endif %}
 
     </div>
 
