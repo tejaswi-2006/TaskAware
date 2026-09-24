@@ -2,6 +2,7 @@ import numpy as np
 
 from sklearn.metrics import (
     accuracy_score,
+    balanced_accuracy_score,
     precision_score,
     recall_score,
     f1_score,
@@ -77,6 +78,81 @@ def classification_metrics(
     # ROC-AUC only makes sense for probabilistic models.
     # For 2-class problems it can be computed from scores,
     # so the caller provides them separately when possible.
+    macro_f1 = f1_score(
+        y_true,
+        y_pred,
+        labels=labels,
+        average="macro",
+        zero_division=0,
+    )
+
+    weighted_f1 = f1_score(
+        y_true,
+        y_pred,
+        labels=labels,
+        average="weighted",
+        zero_division=0,
+    )
+
+    balanced_accuracy = balanced_accuracy_score(
+        y_true,
+        y_pred,
+    )
+
+    per_class_precision = precision_score(
+        y_true,
+        y_pred,
+        labels=labels,
+        average=None,
+        zero_division=0,
+    )
+
+    per_class_recall = recall_score(
+        y_true,
+        y_pred,
+        labels=labels,
+        average=None,
+        zero_division=0,
+    )
+
+    per_class_f1 = f1_score(
+        y_true,
+        y_pred,
+        labels=labels,
+        average=None,
+        zero_division=0,
+    )
+
+    per_class = []
+
+    for index, label in enumerate(labels):
+        per_class.append({
+            "label": str(label),
+            "precision": round(
+                float(per_class_precision[index]), 4
+            ),
+            "recall": round(
+                float(per_class_recall[index]), 4
+            ),
+            "f1": round(float(per_class_f1[index]), 4),
+            "count": int((y_true == label).sum()),
+        })
+
+    counts = [int((y_true == label).sum()) for label in labels]
+    total = sum(counts) or 1
+    minority_share = min(counts) / total
+
+    imbalance_threshold = 0.2 if n_classes == 2 else 0.1
+    imbalance_warning = None
+
+    if minority_share < imbalance_threshold:
+        imbalance_warning = (
+            f"Classes are imbalanced: the smallest class "
+            f"covers {minority_share:.1%} of records. "
+            f"Accuracy can be misleading; compare per-class "
+            f"precision, recall and F1 instead."
+        )
+
     result = {
         "accuracy": round(
             float(accuracy_score(y_true, y_pred)),
@@ -95,13 +171,21 @@ def classification_metrics(
             4
         ),
         "roc_auc": None,
+        "macro_f1": round(float(macro_f1), 4),
+        "weighted_f1": round(float(weighted_f1), 4),
+        "balanced_accuracy": round(
+            float(balanced_accuracy), 4
+        ),
         "n_classes": n_classes,
         "labels": [str(label) for label in labels],
         "confusion_matrix": cm.tolist(),
         "class_counts": {
             str(label): int((y_true == label).sum())
             for label in labels
-        }
+        },
+        "per_class": per_class,
+        "minority_share": round(float(minority_share), 4),
+        "imbalance_warning": imbalance_warning,
     }
 
     return result

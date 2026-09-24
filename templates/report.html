@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-motion="full" data-view="rich">
 
 <head>
 
@@ -10,91 +10,53 @@
 
     <title>TaskAware | Final Report</title>
 
+    <link rel="stylesheet"
+          href="/static/css/taskaware.css">
+
+    <script src="/static/js/taskaware.js" defer></script>
+
     <style>
 
-        body {
-            font-family: "Segoe UI", Arial, sans-serif;
-            max-width: 1050px;
-            margin: 30px auto;
-            padding: 30px;
-            line-height: 1.6;
-            color: #222;
-        }
-
-        h1 {
-            border-bottom: 3px solid #333;
-            padding-bottom: 10px;
-        }
-
-        h2 {
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 6px;
-            margin-top: 30px;
-        }
-
-        h3 {
-            margin-top: 18px;
-        }
-
-        .meta {
-            color: #666;
-            font-size: 14px;
-        }
-
-        .card {
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 16px 20px;
-            margin: 16px 0;
-            page-break-inside: avoid;
-        }
-
-        .summary {
-            background: #f7f7f7;
-            border: 2px solid #333;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-            font-size: 14px;
-        }
-
-        th,
-        td {
-            border: 1px solid #ddd;
-            padding: 7px 9px;
-            text-align: left;
-        }
-
-        th {
-            background: #f0f0f0;
-        }
-
-        .explanation {
-            background: #fafafa;
-            border-left: 4px solid #333;
-            padding: 14px 18px;
-            white-space: pre-wrap;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 2px 10px;
-            border-radius: 12px;
-            background: #333;
-            color: #fff;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
         @media print {
-            body { margin: 0; padding: 20px; }
-            .noprint { display: none; }
+            body.ta-body {
+                background: #fff;
+                color: #111;
+            }
+
+            .ta-body h1,
+            .ta-body h2,
+            .ta-body h3,
+            .ta-body p,
+            .ta-body li,
+            .ta-body td,
+            .ta-body th,
+            .ta-meta,
+            .ta-note {
+                color: #111;
+            }
+
+            .ta-card,
+            details {
+                background: #fff;
+                box-shadow: none;
+                border: 1px solid #999;
+                break-inside: avoid;
+            }
+
+            .ta-topbar,
+            .noprint,
+            nav[aria-label="Analysis workflow progress"] {
+                display: none;
+            }
+
+            .ta-badge {
+                border: 1px solid #333;
+                color: #111;
+                background: #eee;
+            }
         }
 
-        button {
+        .noprint button {
             padding: 11px 20px;
             font-size: 15px;
             cursor: pointer;
@@ -105,752 +67,978 @@
 </head>
 
 
-<body>
+<body class="ta-body">
 
-    <h1>
-        TaskAware Analytical Report
-    </h1>
+    <a class="ta-skip-link" href="#ta-main">
+        Skip to main content
+    </a>
 
-    <p class="meta">
-        Generated: {{ report["generated_at"] }}
-    </p>
+    {% include "_toggles.html" %}
 
+    <header>
 
-    <!-- ================================================= -->
-    <!-- 1. EXECUTIVE SUMMARY -->
-    <!-- ================================================= -->
+        <h1>
+            TaskAware Analytical Report
+        </h1>
 
-    <div class="card summary">
-
-        <h2>
-            1. Executive Summary
-        </h2>
-
-        <p>
-            <strong>Dataset:</strong>
-            {{ report["filename"] }}
-            ({{ report["n_rows"] }} rows,
-            {{ report["n_columns"] }} columns)
+        <p class="ta-meta">
+            Generated: {{ report["generated_at"] }}
         </p>
 
-        {% if report["objective"] %}
-        <p>
-            <strong>Objective:</strong>
-            {{ report["objective"] }}
-        </p>
-        {% endif %}
+    </header>
 
-        <p>
-            <strong>Problem Type:</strong>
-            {{ report["problem_type"] }}
-        </p>
 
-        {% if report["target_column"] %}
-        <p>
-            <strong>Target:</strong>
-            {{ report["target_column"] }}
-        </p>
-        {% endif %}
+    <main id="ta-main">
 
-        {% if report["model_results"] and report["model_results"].get("best_model") %}
-        <p>
-            <strong>Selected Model:</strong>
-            {{ report["model_results"]["best_model"].get("name") }}
-        </p>
-        {% endif %}
+        <!-- ============================================= -->
+        <!-- 1. EXECUTIVE SUMMARY -->
+        <!-- ============================================= -->
 
-        {% if report["model_results"] and report["model_results"].get("n_clusters") %}
-        <p>
-            <strong>Clusters:</strong>
-            {{ report["model_results"]["n_clusters"] }}
-        </p>
-        {% endif %}
+        <section class="ta-card ta-card--glow" aria-label="Executive summary">
 
-    </div>
+            <h2>
+                1. Executive Summary
+                <span class="ta-badge ta-badge--info">{{ report["problem_type"] }}</span>
+            </h2>
 
+            <div class="ta-grid">
 
-    <!-- ================================================= -->
-    <!-- 2. DATA QUALITY -->
-    <!-- ================================================= -->
+                <div>
+                    <div class="ta-label">Dataset</div>
+                    <div class="ta-stat" style="font-size: 18px;">{{ report["filename"] }}</div>
+                    <span class="ta-note">{{ report["n_rows"] }} rows, {{ report["n_columns"] }} columns</span>
+                </div>
 
-    <h2>
-        2. Data Quality
-    </h2>
-
-    <div class="card">
-
-        <table>
-
-            <tr>
-                <td><strong>Rows</strong></td>
-                <td>{{ report["data_quality"]["rows"] }}</td>
-            </tr>
-
-            <tr>
-                <td><strong>Columns</strong></td>
-                <td>{{ report["data_quality"]["columns"] }}</td>
-            </tr>
-
-            <tr>
-                <td><strong>Duplicate Rows</strong></td>
-                <td>{{ report["data_quality"]["duplicate_rows"] }}</td>
-            </tr>
-
-            <tr>
-                <td><strong>Missing Cells</strong></td>
-                <td>
-                    {{ report["data_quality"]["missing_cells"] }}
-                    ({{ report["data_quality"]["missing_ratio"] }})
-                </td>
-            </tr>
-
-            <tr>
-                <td><strong>Constant Columns</strong></td>
-                <td>
-                    {{ report["data_quality"]["constant_columns"] | join(", ") if report["data_quality"]["constant_columns"] else "None" }}
-                </td>
-            </tr>
-
-            <tr>
-                <td><strong>Possible ID Columns</strong></td>
-                <td>
-                    {{ report["data_quality"]["possible_id_columns"] | join(", ") if report["data_quality"]["possible_id_columns"] else "None" }}
-                </td>
-            </tr>
-
-            <tr>
-                <td><strong>Text Columns</strong></td>
-                <td>
-                    {{ report["data_quality"]["text_columns"] | join(", ") if report["data_quality"]["text_columns"] else "None" }}
-                </td>
-            </tr>
-
-            <tr>
-                <td><strong>Date Columns</strong></td>
-                <td>
-                    {{ report["data_quality"]["date_columns"] | join(", ") if report["data_quality"]["date_columns"] else "None" }}
-                </td>
-            </tr>
-
-            <tr>
-                <td><strong>Unsupported Columns</strong></td>
-                <td>
-                    {{ report["data_quality"]["unsupported_columns"] | join(", ") if report["data_quality"]["unsupported_columns"] else "None" }}
-                </td>
-            </tr>
-
-        </table>
-
-    </div>
-
-
-    {% if report["warnings"] %}
-
-    <div class="card">
-
-        <h3>
-            Warnings
-        </h3>
-
-        <ul>
-
-            {% for warning in report["warnings"] %}
-
-            <li>
-                {{ warning }}
-            </li>
-
-            {% endfor %}
-
-        </ul>
-
-    </div>
-
-    {% endif %}
-
-
-    <!-- ================================================= -->
-    <!-- 2b. DETECTED COLUMN ROLES -->
-    <!-- ================================================= -->
-
-    <h2>
-        2b. Detected Column Roles
-    </h2>
-
-    <div class="card">
-
-        <table>
-
-            <tr>
-                <th>Column</th>
-                <th>Role</th>
-                <th>Dtype</th>
-                <th>Unique</th>
-                <th>Missing</th>
-                <th>Target</th>
-            </tr>
-
-            {% for record in report["column_roles"] %}
-
-            <tr>
-
-                <td>{{ record["column"] }}</td>
-                <td>{{ record["role"] }}</td>
-                <td>{{ record["dtype"] }}</td>
-                <td>{{ record["unique_count"] }}</td>
-                <td>{{ record["missing_count"] }}</td>
-                <td>{{ "yes" if record["is_target"] else "" }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- 3. TARGET -->
-    <!-- ================================================= -->
-
-    <h2>
-        3. Target Variable
-    </h2>
-
-    <div class="card">
-
-        {% if report["target_column"] %}
-
-        <p>
-            <strong>Target:</strong>
-            {{ report["target_column"] }}
-        </p>
-
-        {% if report["eda"]["target_analysis"] %}
-        {% set ta = report["eda"]["target_analysis"] %}
-
-        {% if report["problem_type"] == "Classification" %}
-
-        <p>
-            <strong>Classes:</strong>
-            {{ ta["class_count"] }}
-        </p>
-
-        <table>
-
-            <tr>
-                <th>Class</th>
-                <th>Count</th>
-                <th>Percentage</th>
-            </tr>
-
-            {% for item in ta["distribution"] %}
-
-            <tr>
-                <td>{{ item["class"] }}</td>
-                <td>{{ item["count"] }}</td>
-                <td>{{ item["percentage"] }}%</td>
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-        {% else %}
-
-        <p>
-            <strong>Mean:</strong>
-            {{ ta["mean"] }}
-            &nbsp;|&nbsp;
-            <strong>Median:</strong>
-            {{ ta["median"] }}
-            &nbsp;|&nbsp;
-            <strong>Std:</strong>
-            {{ ta["std"] }}
-            &nbsp;|&nbsp;
-            <strong>Range:</strong>
-            {{ ta["min"] }} – {{ ta["max"] }}
-        </p>
-
-        {% endif %}
-
-        {% endif %}
-
-        {% else %}
-
-        <p>
-            No supervised target. This analysis used
-            clustering to discover groups in the data.
-        </p>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- 4. DATA PREPARATION -->
-    <!-- ================================================= -->
-
-    <h2>
-        4. Data Preparation
-    </h2>
-
-    <div class="card">
-
-        <ul>
-
-            {% for step in report["prep"]["steps"] %}
-
-            <li>
-                {{ step }}
-            </li>
-
-            {% endfor %}
-
-        </ul>
-
-        {% if report["prep"].get("feature_accounting") %}
-        {% set fa = report["prep"]["feature_accounting"] %}
-
-        <h3>
-            Feature Accounting
-        </h3>
-
-        <table>
-
-            <tr>
-                <th>Stage</th>
-                <th>Count</th>
-            </tr>
-
-            <tr>
-                <td>Raw feature columns</td>
-                <td>{{ fa["raw_feature_columns"] }}</td>
-            </tr>
-
-            <tr>
-                <td>Identifier columns removed</td>
-                <td>{{ fa["identifier_columns_removed"] | length }}</td>
-            </tr>
-
-            <tr>
-                <td>Unsupported columns excluded</td>
-                <td>{{ fa["unsupported_columns_excluded"] | length }}</td>
-            </tr>
-
-            <tr>
-                <td>Raw usable feature columns</td>
-                <td>{{ fa["raw_usable_count"] }}</td>
-            </tr>
-
-            <tr>
-                <td>Generated transformed features</td>
-                <td>{{ fa["generated_transformed_features"] }}</td>
-            </tr>
-
-            <tr>
-                <td>Feature selection applied</td>
-                <td>
-                    {% if fa["feature_selection_applied"] %}
-                    Yes
-                    {% else %}
-                    No — {{ fa["selection_note"] }}
-                    {% endif %}
-                </td>
-            </tr>
-
-            <tr>
-                <td>Features removed by selection</td>
-                <td>{{ fa["features_removed_by_selection"] }}</td>
-            </tr>
-
-            <tr>
-                <td>Final model features</td>
-                <td>{{ fa["final_model_features"] }}</td>
-            </tr>
-
-        </table>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- 4b. GROUP VALIDATION -->
-    <!-- ================================================= -->
-
-    <h2>
-        Group Validation
-    </h2>
-
-    <div class="card">
-
-        <p>
-            <strong>Group column:</strong>
-            {{ report["group_validation"]["group_column"] or "none" }}
-        </p>
-
-        <p>
-            <strong>Strategy:</strong>
-            {{ report["group_validation"]["strategy"] }}
-        </p>
-
-        <p>
-            <strong>Reason:</strong>
-            {{ report["group_validation"]["reason"] }}
-        </p>
-
-        <p>
-            <strong>Confidence:</strong>
-            {{ report["group_validation"]["confidence"] or "n/a" }}
-        </p>
-
-        {% if report["model_results"]
-            and report["model_results"].get("used_group_split") %}
-
-        <p>
-            <strong>Applied split:</strong>
-            group-aware split on
-            {{ report["model_results"]["used_group_split"] }}
-            (entities kept whole across train and test).
-        </p>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- 5. MODEL / CLUSTER RESULTS -->
-    <!-- ================================================= -->
-
-    <h2>
-        5. Results
-    </h2>
-
-    {% if report["problem_type"] == "Clustering" %}
-    {% set mr = report["model_results"] %}
-
-    <div class="card">
-
-        <p>
-            <strong>Selected configuration:</strong>
-            {{ mr["n_clusters"] }} clusters
-        </p>
-
-        <p>
-            <strong>Silhouette Score:</strong>
-            {{ mr["silhouette"] }}
-        </p>
-
-        <p>
-            <strong>Davies-Bouldin Index:</strong>
-            {{ mr["davies_bouldin"] }}
-        </p>
-
-        {% if mr["stability"] %}
-        <p>
-            <strong>Stability:</strong>
-            {{ mr["stability"]["agreement"] }}
-            ({{ "stable" if mr["stability"]["stable"] else "less stable" }})
-        </p>
-        {% endif %}
-
-        <h3>
-            K Evaluation
-        </h3>
-
-        <table>
-
-            <tr>
-                <th>K</th>
-                <th>Silhouette</th>
-                <th>Davies-Bouldin</th>
-                <th>Calinski-Harabasz</th>
-            </tr>
-
-            {% for eval in mr["evaluations"] %}
-
-            <tr>
-                <td>{{ eval["k"] }}</td>
-                <td>{{ eval["silhouette"] }}</td>
-                <td>{{ eval["davies_bouldin"] }}</td>
-                <td>{{ eval["calinski_harabasz"] }}</td>
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-        <h3>
-            Cluster Profiles
-        </h3>
-
-        {% for profile in mr["profiles"] %}
-
-        <p>
-            <strong>
-                Cluster {{ profile["cluster"] }}
-            </strong>
-            ({{ profile["size"] }} samples,
-            {{ profile["size_percentage"] }}%)
-        </p>
-
-        <table>
-
-            <tr>
-                <th>Feature</th>
-                <th>Value</th>
-            </tr>
-
-            {% for feature in profile["features"] %}
-
-            <tr>
-
-                <td>{{ feature["column"] }}</td>
-
-                {% if feature["type"] == "numerical" %}
-                <td>Mean: {{ feature["mean"] }}</td>
-                {% else %}
-                <td>{{ feature["dominant"] }} ({{ feature["dominant_ratio"] }})</td>
+                {% if report["target_column"] %}
+                <div>
+                    <div class="ta-label">Target</div>
+                    <div class="ta-stat" style="font-size: 18px;">{{ report["target_column"] }}</div>
+                </div>
                 {% endif %}
 
-            </tr>
+                {% if report["model_results"] and report["model_results"].get("best_model") %}
+                <div>
+                    <div class="ta-label">Selected Model</div>
+                    <div class="ta-stat" style="font-size: 18px;">{{ report["model_results"]["best_model"].get("name") }}</div>
+                </div>
+                {% endif %}
 
-            {% endfor %}
+                {% if report["model_results"] and report["model_results"].get("n_clusters") %}
+                <div>
+                    <div class="ta-label">Clusters</div>
+                    <div class="ta-stat">{{ report["model_results"]["n_clusters"] }}</div>
+                </div>
+                {% endif %}
 
-        </table>
+            </div>
 
-        {% endfor %}
+            {% if report["objective"] %}
+            <p>
+                <strong>Objective:</strong>
+                {{ report["objective"] }}
+            </p>
+            {% endif %}
 
-    </div>
+        </section>
 
-    {% else %}
-    {% set mr = report["model_results"] %}
-    {% set results = mr["results"] if mr else [] %}
 
-    <div class="card">
+        <!-- ============================================= -->
+        <!-- 2. DATA QUALITY -->
+        <!-- ============================================= -->
 
-        {% if mr and mr.get("best_model") %}
-        {% set best = mr["best_model"] %}
+        <section aria-label="Data quality">
 
-        <h3>
-            Selected Model
-            <span class="badge">BEST</span>
-        </h3>
+            <h2>
+                2. Data Quality
+            </h2>
 
-        <p>
-            <strong>{{ best["name"] }}</strong>
-        </p>
+            <div class="ta-card">
 
-        {% if best.get("reason") %}
-        <p>
-            {{ best["reason"] }}
-        </p>
-        {% endif %}
+                <div class="ta-table-wrap" role="region" aria-label="Data quality" tabindex="0">
 
-        {% if mr.get("n_transformed_features") %}
-        <p>
-            <strong>Final model features:</strong>
-            {{ mr["n_transformed_features"] }}
-        </p>
-        {% endif %}
+                    <table>
 
-        {% if mr.get("used_group_split") %}
-        <p>
-            <strong>Applied split:</strong>
-            group-aware split on
-            {{ mr["used_group_split"] }}
-        </p>
-        {% endif %}
+                        <caption class="ta-note">
+                            Structural checks for {{ report["filename"] }}.
+                        </caption>
 
-        {% endif %}
+                        <tr>
+                            <td><strong>Rows</strong></td>
+                            <td>{{ report["data_quality"]["rows"] }}</td>
+                        </tr>
 
-        <h3>
-            Model Comparison
-        </h3>
+                        <tr>
+                            <td><strong>Columns</strong></td>
+                            <td>{{ report["data_quality"]["columns"] }}</td>
+                        </tr>
 
-        <table>
+                        <tr>
+                            <td><strong>Duplicate Rows</strong></td>
+                            <td>
+                                {{ report["data_quality"]["duplicate_rows"] }}
+                                {% if report["data_quality"].get("duplicate_check_status") == "partial" %}
+                                <span class="ta-badge ta-badge--warn">! partial check</span>
+                                {% endif %}
+                            </td>
+                        </tr>
 
-            {% if report["problem_type"] == "Classification" %}
+                        {% if report["data_quality"].get("duplicate_check_warning") %}
+                        <tr>
+                            <td><strong>Duplicate Check Note</strong></td>
+                            <td>{{ report["data_quality"]["duplicate_check_warning"] }}</td>
+                        </tr>
+                        {% endif %}
 
-            <tr>
-                <th>Model</th>
-                <th>CV F1</th>
-                <th>Accuracy</th>
-                <th>Precision</th>
-                <th>Recall</th>
-                <th>F1</th>
-                <th>ROC-AUC</th>
-            </tr>
+                        <tr>
+                            <td><strong>Missing Cells</strong></td>
+                            <td>
+                                {{ report["data_quality"]["missing_cells"] }}
+                                ({{ report["data_quality"]["missing_ratio"] }})
+                            </td>
+                        </tr>
 
-            {% for model in results %}
+                        <tr>
+                            <td><strong>Constant Columns</strong></td>
+                            <td>
+                                {{ report["data_quality"]["constant_columns"] | join(", ") if report["data_quality"]["constant_columns"] else "None" }}
+                            </td>
+                        </tr>
 
-            <tr>
-                <td>{{ model["name"] }}</td>
-                <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
-                <td>{{ model["accuracy"] }}</td>
-                <td>{{ model["precision"] }}</td>
-                <td>{{ model["recall"] }}</td>
-                <td>{{ model["f1"] }}</td>
-                <td>{{ model["roc_auc"] if model["roc_auc"] is not none else "-" }}</td>
-            </tr>
+                        <tr>
+                            <td><strong>Possible ID Columns</strong></td>
+                            <td>
+                                {{ report["data_quality"]["possible_id_columns"] | join(", ") if report["data_quality"]["possible_id_columns"] else "None" }}
+                            </td>
+                        </tr>
 
-            {% endfor %}
+                        <tr>
+                            <td><strong>Text Columns</strong></td>
+                            <td>
+                                {{ report["data_quality"]["text_columns"] | join(", ") if report["data_quality"]["text_columns"] else "None" }}
+                            </td>
+                        </tr>
 
-            {% else %}
+                        <tr>
+                            <td><strong>Date Columns</strong></td>
+                            <td>
+                                {{ report["data_quality"]["date_columns"] | join(", ") if report["data_quality"]["date_columns"] else "None" }}
+                            </td>
+                        </tr>
 
-            <tr>
-                <th>Model</th>
-                <th>CV R2</th>
-                <th>R2</th>
-                <th>MAE</th>
-                <th>MSE</th>
-                <th>RMSE</th>
-            </tr>
+                        <tr>
+                            <td><strong>Unsupported Columns</strong></td>
+                            <td>
+                                {% if report["data_quality"]["unsupported_columns"] %}
+                                <span class="ta-badge ta-badge--bad">unsupported</span>
+                                {{ report["data_quality"]["unsupported_columns"] | join(", ") }}
+                                {% else %}
+                                None
+                                {% endif %}
+                            </td>
+                        </tr>
 
-            {% for model in results %}
+                    </table>
 
-            <tr>
-                <td>{{ model["name"] }}</td>
-                <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
-                <td>{{ model["r2"] }}</td>
-                <td>{{ model["mae"] }}</td>
-                <td>{{ model["mse"] }}</td>
-                <td>{{ model["rmse"] }}</td>
-            </tr>
+                </div>
 
-            {% endfor %}
+            </div>
+
+
+            {% if report["warnings"] %}
+
+            <div class="ta-card ta-card--warning">
+
+                <h3>
+                    Warnings
+                </h3>
+
+                <ul>
+
+                    {% for warning in report["warnings"] %}
+
+                    <li>
+                        <span class="ta-badge ta-badge--warn">! warning</span>
+                        {{ warning }}
+                    </li>
+
+                    {% endfor %}
+
+                </ul>
+
+            </div>
 
             {% endif %}
 
-        </table>
-
-    </div>
-
-    {% endif %}
+        </section>
 
 
-    <!-- ================================================= -->
-    <!-- 6. EXPLANATION -->
-    <!-- ================================================= -->
+        <!-- ============================================= -->
+        <!-- 2b. DETECTED COLUMN ROLES -->
+        <!-- ============================================= -->
 
-    <h2>
-        6. Interpretation
-    </h2>
+        <section aria-label="Detected column roles">
 
-    <div class="card">
+            <h2>
+                2b. Detected Column Roles
+            </h2>
 
-        {% if report["explanation"] %}
+            <div class="ta-card">
 
-        <div class="explanation">
-            {{ report["explanation"] }}
+                <div class="ta-table-wrap" role="region" aria-label="Column roles" tabindex="0">
+
+                    <table>
+
+                        <caption class="ta-note">
+                            Semantic role per column.
+                        </caption>
+
+                        <tr>
+                            <th scope="col">Column</th>
+                            <th scope="col">Role</th>
+                            <th scope="col">Dtype</th>
+                            <th scope="col">Unique</th>
+                            <th scope="col">Missing</th>
+                            <th scope="col">Target</th>
+                        </tr>
+
+                        {% for record in report["column_roles"] %}
+
+                        <tr>
+
+                            <td>{{ record["column"] }}</td>
+                            <td>
+                                <span class="ta-badge ta-badge--role">{{ record["role"] }}</span>
+                            </td>
+                            <td>{{ record["dtype"] }}</td>
+                            <td>{{ record["unique_count"] }}</td>
+                            <td>{{ record["missing_count"] }}</td>
+                            <td>{{ "yes" if record["is_target"] else "" }}</td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- 3. TARGET -->
+        <!-- ============================================= -->
+
+        <section aria-label="Target variable">
+
+            <h2>
+                3. Target Variable
+            </h2>
+
+            <div class="ta-card">
+
+                {% if report["target_column"] %}
+
+                <p>
+                    <strong>Target:</strong>
+                    {{ report["target_column"] }}
+                </p>
+
+                {% if report.get("class_meanings") %}
+
+                <p>
+                    <strong>Class notes (provided by you):</strong>
+                    {{ report["class_meanings"] }}
+                </p>
+
+                {% endif %}
+
+                {% if report["eda"]["target_analysis"] %}
+                {% set ta = report["eda"]["target_analysis"] %}
+
+                {% if report["problem_type"] == "Classification" %}
+
+                <p>
+                    <strong>Classes:</strong>
+                    {{ ta["class_count"] }}
+                </p>
+
+                <div class="ta-table-wrap" role="region" aria-label="Class distribution" tabindex="0">
+
+                    <table>
+
+                        <tr>
+                            <th scope="col">Class</th>
+                            <th scope="col">Count</th>
+                            <th scope="col">Percentage</th>
+                        </tr>
+
+                        {% for item in ta["distribution"] %}
+
+                        <tr>
+                            <td>{{ item["class"] }}</td>
+                            <td>{{ item["count"] }}</td>
+                            <td>{{ item["percentage"] }}%</td>
+                        </tr>
+
+                        {% endfor %}
+
+                    </table>
+
+                </div>
+
+                {% else %}
+
+                <p>
+                    <strong>Mean:</strong>
+                    {{ ta["mean"] }}
+                    &nbsp;|&nbsp;
+                    <strong>Median:</strong>
+                    {{ ta["median"] }}
+                    &nbsp;|&nbsp;
+                    <strong>Std:</strong>
+                    {{ ta["std"] }}
+                    &nbsp;|&nbsp;
+                    <strong>Range:</strong>
+                    {{ ta["min"] }} – {{ ta["max"] }}
+                </p>
+
+                {% endif %}
+
+                {% endif %}
+
+                {% else %}
+
+                <p>
+                    No supervised target. This analysis used
+                    clustering to discover groups in the data.
+                </p>
+
+                {% endif %}
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- 4. DATA PREPARATION -->
+        <!-- ============================================= -->
+
+        <section aria-label="Data preparation">
+
+            <h2>
+                4. Data Preparation
+            </h2>
+
+            <div class="ta-card">
+
+                <ul>
+
+                    {% for step in report["prep"]["steps"] %}
+
+                    <li>
+                        {{ step }}
+                    </li>
+
+                    {% endfor %}
+
+                </ul>
+
+                {% if report["prep"].get("feature_accounting") %}
+                {% set fa = report["prep"]["feature_accounting"] %}
+
+                <h3>
+                    Feature Accounting
+                </h3>
+
+                <div class="ta-table-wrap" role="region" aria-label="Feature accounting" tabindex="0">
+
+                    <table>
+
+                        <tr>
+                            <th scope="col">Stage</th>
+                            <th scope="col">Count</th>
+                        </tr>
+
+                        <tr>
+                            <td>Raw feature columns</td>
+                            <td>{{ fa["raw_feature_columns"] }}</td>
+                        </tr>
+
+                        <tr>
+                            <td>Identifier columns removed</td>
+                            <td>{{ fa["identifier_columns_removed"] | length }}</td>
+                        </tr>
+
+                        <tr>
+                            <td>Unsupported columns excluded</td>
+                            <td>{{ fa["unsupported_columns_excluded"] | length }}</td>
+                        </tr>
+
+                        <tr>
+                            <td>Raw usable feature columns</td>
+                            <td>{{ fa["raw_usable_count"] }}</td>
+                        </tr>
+
+                        <tr>
+                            <td>Generated transformed features</td>
+                            <td>{{ fa["generated_transformed_features"] }}</td>
+                        </tr>
+
+                        <tr>
+                            <td>Feature selection applied</td>
+                            <td>
+                                {% if fa["feature_selection_applied"] %}
+                                Yes
+                                {% else %}
+                                No — {{ fa["selection_note"] }}
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td>Features removed by selection</td>
+                            <td>{{ fa["features_removed_by_selection"] }}</td>
+                        </tr>
+
+                        <tr>
+                            <td>Final model features</td>
+                            <td>{{ fa["final_model_features"] }}</td>
+                        </tr>
+
+                    </table>
+
+                </div>
+
+                {% endif %}
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- 4b. GROUP VALIDATION -->
+        <!-- ============================================= -->
+
+        <section aria-label="Group validation">
+
+            <h2>
+                Group Validation
+            </h2>
+
+            <div class="ta-card">
+
+                <p>
+                    <strong>Group column:</strong>
+                    {{ report["group_validation"]["group_column"] or "none" }}
+                </p>
+
+                <p>
+                    <strong>Strategy:</strong>
+                    {{ report["group_validation"]["strategy"] }}
+                </p>
+
+                <p>
+                    <strong>Reason:</strong>
+                    {{ report["group_validation"]["reason"] }}
+                </p>
+
+                <p>
+                    <strong>Confidence:</strong>
+                    {{ report["group_validation"]["confidence"] or "n/a" }}
+                </p>
+
+                {% if report.get("confirmed_groups") %}
+
+                <p>
+                    <strong>Confirmed by you:</strong>
+                    {{ report["confirmed_groups"] | join(", ") }}
+                </p>
+
+                {% endif %}
+
+                {% if report["model_results"]
+                    and report["model_results"].get("used_group_split") %}
+
+                <p>
+                    <strong>Applied split:</strong>
+                    group-aware split on
+                    {{ report["model_results"]["used_group_split"] }}
+                    (entities kept whole across train and test).
+                </p>
+
+                {% endif %}
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- 5. MODEL / CLUSTER RESULTS -->
+        <!-- ============================================= -->
+
+        <section aria-label="Results">
+
+            <h2>
+                5. Results
+            </h2>
+
+            {% if report["problem_type"] == "Clustering" %}
+            {% set mr = report["model_results"] %}
+
+            <div class="ta-card">
+
+                <div class="ta-grid">
+
+                    <div>
+                        <div class="ta-label">Clusters</div>
+                        <div class="ta-stat">{{ mr["n_clusters"] }}</div>
+                    </div>
+
+                    <div>
+                        <div class="ta-label">Silhouette</div>
+                        <div class="ta-stat">{{ mr["silhouette"] }}</div>
+                    </div>
+
+                    <div>
+                        <div class="ta-label">Davies-Bouldin</div>
+                        <div class="ta-stat">{{ mr["davies_bouldin"] }}</div>
+                    </div>
+
+                </div>
+
+                {% if mr["stability"] %}
+                <p>
+                    <strong>Stability:</strong>
+                    {{ mr["stability"]["agreement"] }}
+                    ({{ "stable" if mr["stability"]["stable"] else "less stable" }})
+                </p>
+                {% endif %}
+
+                <h3>
+                    K Evaluation
+                </h3>
+
+                <div class="ta-table-wrap" role="region" aria-label="K evaluation" tabindex="0">
+
+                    <table>
+
+                        <tr>
+                            <th scope="col">K</th>
+                            <th scope="col">Silhouette</th>
+                            <th scope="col">Davies-Bouldin</th>
+                            <th scope="col">Calinski-Harabasz</th>
+                        </tr>
+
+                        {% for eval in mr["evaluations"] %}
+
+                        <tr>
+                            <td>{{ eval["k"] }}</td>
+                            <td>{{ eval["silhouette"] }}</td>
+                            <td>{{ eval["davies_bouldin"] }}</td>
+                            <td>{{ eval["calinski_harabasz"] }}</td>
+                        </tr>
+
+                        {% endfor %}
+
+                    </table>
+
+                </div>
+
+                <h3>
+                    Cluster Profiles
+                </h3>
+
+                {% for profile in mr["profiles"] %}
+
+                <p>
+                    <strong>
+                        Cluster {{ profile["cluster"] }}
+                    </strong>
+                    ({{ profile["size"] }} samples,
+                    {{ profile["size_percentage"] }}%)
+                </p>
+
+                <div class="ta-table-wrap" role="region" aria-label="Cluster {{ profile['cluster'] }}" tabindex="0">
+
+                    <table>
+
+                        <tr>
+                            <th scope="col">Feature</th>
+                            <th scope="col">Value</th>
+                        </tr>
+
+                        {% for feature in profile["features"] %}
+
+                        <tr>
+
+                            <td>{{ feature["column"] }}</td>
+
+                            {% if feature["type"] == "numerical" %}
+                            <td>Mean: {{ feature["mean"] }}</td>
+                            {% else %}
+                            <td>{{ feature["dominant"] }} ({{ feature["dominant_ratio"] }})</td>
+                            {% endif %}
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </table>
+
+                </div>
+
+                {% endfor %}
+
+            </div>
+
+            {% else %}
+            {% set mr = report["model_results"] %}
+            {% set results = mr["results"] if mr else [] %}
+
+            <div class="ta-card">
+
+                {% if mr and mr.get("best_model") %}
+                {% set best = mr["best_model"] %}
+
+                <h3>
+                    Selected Model
+                    <span class="ta-badge ta-badge--ok">✓ BEST</span>
+                </h3>
+
+                <p>
+                    <strong>{{ best["name"] }}</strong>
+                </p>
+
+                {% if best.get("primary_metric") %}
+                <p>
+                    <strong>Primary selection metric:</strong>
+                    <span class="ta-badge ta-badge--info">{{ best["primary_metric"] }}</span>
+                </p>
+                {% endif %}
+
+                {% if best.get("reason") %}
+                <p>
+                    {{ best["reason"] }}
+                </p>
+                {% endif %}
+
+                {% if mr.get("n_transformed_features") %}
+                <p>
+                    <strong>Final model features:</strong>
+                    {{ mr["n_transformed_features"] }}
+                </p>
+                {% endif %}
+
+                {% if mr.get("used_group_split") %}
+                <p>
+                    <strong>Applied split:</strong>
+                    group-aware split on
+                    {{ mr["used_group_split"] }}
+                </p>
+                {% endif %}
+
+                {% endif %}
+
+                <h3>
+                    Model Comparison
+                </h3>
+
+                <div class="ta-table-wrap" role="region" aria-label="Model comparison" tabindex="0">
+
+                    <table>
+
+                        {% if report["problem_type"] == "Classification" %}
+
+                        <tr>
+                            <th scope="col">Model</th>
+                            <th scope="col">CV F1</th>
+                            <th scope="col">Accuracy</th>
+                            <th scope="col">Precision</th>
+                            <th scope="col">Recall</th>
+                            <th scope="col">F1</th>
+                            <th scope="col">Macro-F1</th>
+                            <th scope="col">ROC-AUC</th>
+                        </tr>
+
+                        {% for model in results %}
+
+                        <tr>
+                            <td>{{ model["name"] }}</td>
+                            <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
+                            <td>{{ model["accuracy"] }}</td>
+                            <td>{{ model["precision"] }}</td>
+                            <td>{{ model["recall"] }}</td>
+                            <td>{{ model["f1"] }}</td>
+                            <td>{{ model.get("macro_f1", "-") }}</td>
+                            <td>{{ model["roc_auc"] if model["roc_auc"] is not none else "-" }}</td>
+                        </tr>
+
+                        {% endfor %}
+
+                        {% else %}
+
+                        <tr>
+                            <th scope="col">Model</th>
+                            <th scope="col">CV R2</th>
+                            <th scope="col">R2</th>
+                            <th scope="col">MAE</th>
+                            <th scope="col">MSE</th>
+                            <th scope="col">RMSE</th>
+                        </tr>
+
+                        {% for model in results %}
+
+                        <tr>
+                            <td>{{ model["name"] }}</td>
+                            <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
+                            <td>{{ model["r2"] }}</td>
+                            <td>{{ model["mae"] }}</td>
+                            <td>{{ model["mse"] }}</td>
+                            <td>{{ model["rmse"] }}</td>
+                        </tr>
+
+                        {% endfor %}
+
+                        {% endif %}
+
+                    </table>
+
+                </div>
+
+            </div>
+
+            {% endif %}
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- 6. EXPLANATION -->
+        <!-- ============================================= -->
+
+        <section aria-label="Interpretation">
+
+            <h2>
+                6. Interpretation
+            </h2>
+
+            <div class="ta-card">
+
+                {% if report["model_results"] and report["model_results"].get("explanation_method") %}
+
+                <p>
+                    <strong>Explanation method:</strong>
+                    {{ report["model_results"]["explanation_method"] }}
+                </p>
+
+                {% endif %}
+
+                {% if report["model_results"] and report["model_results"].get("explanation_top_features") %}
+
+                <p>
+                    <strong>Top factors:</strong>
+                    {{ report["model_results"]["explanation_top_features"] | join(", ") }}
+                </p>
+
+                {% endif %}
+
+                {% if report["explanation"] %}
+
+                <div class="plain-summary">
+                    {{ report["explanation"] }}
+                </div>
+
+                {% else %}
+
+                <p>
+                    No explanation was generated for this analysis.
+                </p>
+
+                {% endif %}
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- 7. LIMITATIONS -->
+        <!-- ============================================= -->
+
+        <section aria-label="Limitations">
+
+            <h2>
+                7. Limitations
+            </h2>
+
+            <div class="ta-card ta-card--warning">
+
+                <ul>
+
+                    <li>
+                        Findings describe associations in this
+                        dataset, not proven causes. Validate on
+                        new data before operational use.
+                    </li>
+
+                    {% if report["data_quality"]["unsupported_columns"] %}
+                    <li>
+                        Unsupported columns were excluded:
+                        {{ report["data_quality"]["unsupported_columns"] | join(", ") }}.
+                    </li>
+                    {% endif %}
+
+                    {% if report["model_results"] and report["model_results"].get("used_group_split") is none and report["problem_type"] != "Clustering" %}
+                    <li>
+                        No repeated-entity structure was used for
+                        validation splitting.
+                    </li>
+                    {% endif %}
+
+                </ul>
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- 8. CONCLUSION -->
+        <!-- ============================================= -->
+
+        <section aria-label="Conclusion">
+
+            <h2>
+                8. Conclusion
+            </h2>
+
+            <div class="ta-card">
+
+                <p>
+                    TaskAware completed a full workflow on
+                    <strong>{{ report["filename"] }}</strong>:
+                    dataset validation, target identification,
+                    detailed EDA, leakage-safe preprocessing,
+                    and {{ report["problem_type"].lower() }}
+                    analysis.
+                </p>
+
+                {% if report["model_results"] and report["model_results"].get("best_model") %}
+
+                <p>
+                    The model
+                    <strong>
+                        {{ report["model_results"]["best_model"].get("name") }}
+                    </strong>
+                    was selected based on cross-validated
+                    evaluation.
+                    {% set _method = report["model_results"].get("explanation_method") %}
+                    {% if _method == "SHAP" %}
+                    Interpretability was provided through SHAP
+                    feature contributions,
+                    {% elif _method == "Model Coefficients" %}
+                    Interpretability was provided through model
+                    coefficients (not SHAP),
+                    {% elif _method == "Feature Importance" %}
+                    Interpretability was provided through
+                    model-based feature importance (not SHAP),
+                    {% elif _method == "Permutation Importance" %}
+                    Interpretability was provided through
+                    permutation importance (not SHAP),
+                    {% elif _method %}
+                    Interpretability was provided through
+                    {{ _method }},
+                    {% else %}
+                    Interpretability information was limited,
+                    {% endif %}
+                    and the results were explained in plain
+                    language.
+                </p>
+
+                {% endif %}
+
+                <p>
+                    These findings are based on the uploaded
+                    dataset. They should be validated further
+                    before any operational decision.
+                </p>
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- 9. REPRODUCIBILITY -->
+        <!-- ============================================= -->
+
+        <section aria-label="Reproducibility">
+
+            <h2>
+                9. Reproducibility
+            </h2>
+
+            <div class="ta-card">
+
+                <p>
+                    <strong>Random seed:</strong>
+                    {{ report.get("random_seed", 42) }}
+                </p>
+
+                <p>
+                    <strong>Software:</strong>
+                    {{ report.get("software", {}).get("module", "TaskAware") }}
+                    {{ report.get("software", {}).get("version", "") }}
+                </p>
+
+                <p>
+                    <strong>Generated:</strong>
+                    {{ report["generated_at"] }}
+                </p>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <footer>
+
+        <p class="ta-meta">
+            Report generated automatically by TaskAware.
+        </p>
+
+        <div class="noprint">
+
+            <br>
+
+            <button onclick="window.print()" class="ta-btn">
+                Print / Save as PDF
+            </button>
+
+            {% if project_id %}
+            &nbsp;
+            <a href="/project/{{ project_id }}">
+                <button>View Project</button>
+            </a>
+            {% endif %}
+
+            &nbsp;
+
+            <a href="/upload">
+                <button>Upload Another Dataset</button>
+            </a>
+
         </div>
 
-        {% else %}
-
-        <p>
-            No explanation was generated for this analysis.
-        </p>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- 7. CONCLUSION -->
-    <!-- ================================================= -->
-
-    <h2>
-        7. Conclusion
-    </h2>
-
-    <div class="card">
-
-        <p>
-            TaskAware completed a full workflow on
-            <strong>{{ report["filename"] }}</strong>:
-            dataset validation, target identification,
-            detailed EDA, leakage-safe preprocessing,
-            and {{ report["problem_type"].lower() }}
-            analysis.
-        </p>
-
-        {% if report["model_results"] and report["model_results"].get("best_model") %}
-
-        <p>
-            The model
-            <strong>
-                {{ report["model_results"]["best_model"].get("name") }}
-            </strong>
-            was selected based on cross-validated
-            evaluation.
-            {% set _method = report["model_results"].get("explanation_method") %}
-            {% if _method == "SHAP" %}
-            Interpretability was provided through SHAP
-            feature contributions,
-            {% elif _method == "Model Coefficients" %}
-            Interpretability was provided through model
-            coefficients (not SHAP),
-            {% elif _method == "Feature Importance" %}
-            Interpretability was provided through
-            model-based feature importance (not SHAP),
-            {% elif _method == "Permutation Importance" %}
-            Interpretability was provided through
-            permutation importance (not SHAP),
-            {% elif _method %}
-            Interpretability was provided through
-            {{ _method }},
-            {% else %}
-            Interpretability information was limited,
-            {% endif %}
-            and the results were explained in plain
-            language.
-        </p>
-
-        {% endif %}
-
-        <p>
-            These findings are based on the uploaded
-            dataset. They should be validated further
-            before any operational decision.
-        </p>
-
-    </div>
-
-
-    <hr>
-
-    <p class="meta">
-        Report generated automatically by TaskAware.
-    </p>
-
-    <div class="noprint">
-
-        <br>
-
-        <button onclick="window.print()">
-            Print / Save as PDF
-        </button>
-
-        {% if project_id %}
-        &nbsp;
-        <a href="/project/{{ project_id }}">
-            <button>View Project</button>
-        </a>
-        {% endif %}
-
-        &nbsp;
-
-        <a href="/upload">
-            <button>Upload Another Dataset</button>
-        </a>
-
-    </div>
+    </footer>
 
 </body>
 

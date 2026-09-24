@@ -54,14 +54,27 @@
 
     </style>
 
+    <link rel="stylesheet"
+          href="/static/css/taskaware.css">
+
+    <script src="/static/js/taskaware.js" defer></script>
+
 </head>
 
 
-<body>
+<body class="ta-body">
+
+    <a class="ta-skip-link" href="#ta-main">
+        Skip to main content
+    </a>
+
+    {% include "_toggles.html" %}
 
     <h1>
         Target Comparison
     </h1>
+
+    {% include "_timeline.html" %}
 
 
     <!-- ================================================= -->

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-motion="full" data-view="rich">
 
 <head>
 
@@ -10,381 +10,568 @@
 
     <title>TaskAware | Model Results</title>
 
-    <style>
+    <link rel="stylesheet"
+          href="/static/css/taskaware.css">
 
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1150px;
-            margin: 40px auto;
-            padding: 20px;
-            line-height: 1.6;
-        }
-
-        h1 {
-            margin-bottom: 5px;
-        }
-
-        .card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-
-        .success {
-            border: 2px solid #333;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 12px;
-            font-size: 14px;
-        }
-
-        th,
-        td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background: #f3f3f3;
-        }
-
-        .best-row {
-            background: #eef6ee;
-            font-weight: bold;
-        }
-
-        .meta {
-            color: #555;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 12px;
-            background: #2e7d32;
-            color: #fff;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        button {
-            padding: 11px 20px;
-            font-size: 15px;
-            cursor: pointer;
-        }
-
-        .confusion {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-
-        .confusion table {
-            width: auto;
-        }
-
-    </style>
+    <script src="/static/js/taskaware.js" defer></script>
 
 </head>
 
 
-<body>
+<body class="ta-body">
 
-    <h1>
-        Model Training Results
-    </h1>
+    <a class="ta-skip-link" href="#ta-main">
+        Skip to main content
+    </a>
 
-    <p class="meta">
-        File: {{ filename }}
-        &nbsp;|&nbsp;
-        Target: {{ target_column }}
-        &nbsp;|&nbsp;
-        Problem Type: {{ problem_type }}
-    </p>
+    {% include "_toggles.html" %}
 
-    {% if objective %}
-    <p class="meta">
-        Objective: {{ objective }}
-    </p>
-    {% endif %}
+    <header>
 
+        <h1>
+            Model Training Results
+        </h1>
 
-    <!-- ================================================= -->
-    <!-- BEST MODEL -->
-    <!-- ================================================= -->
-
-    {% if best %}
-
-    <div class="card success">
-
-        <h2>
-            Selected Model
-            <span class="badge">
-                BEST
-            </span>
-        </h2>
-
-        <h3>
-            {{ best["name"] }}
-        </h3>
-
-        <p>
-            {{ best["reason"] }}
+        <p class="ta-meta">
+            File: {{ filename }}
+            &nbsp;|&nbsp;
+            Target: {{ target_column }}
+            &nbsp;|&nbsp;
+            Problem Type: {{ problem_type }}
         </p>
 
-    </div>
-
-    {% endif %}
-
-
-    <!-- ================================================= -->
-    <!-- MODEL COMPARISON -->
-    <!-- ================================================= -->
-
-    <div class="card">
-
-        <h2>
-            Model Comparison
-        </h2>
-
-        <p class="meta">
-            Train size: {{ training["X_train_shape"][0] }}
-            &nbsp;|&nbsp;
-            Test size: {{ training["X_test_shape"][0] }}
-            &nbsp;|&nbsp;
-            5-fold cross-validation
-            {% if training.get("n_transformed_features") %}
-            &nbsp;|&nbsp;
-            Final model features:
-            {{ training["n_transformed_features"] }}
-            {% endif %}
-            {% if training.get("used_group_split") %}
-            &nbsp;|&nbsp;
-            Group-aware split on
-            {{ training["used_group_split"] }}
-            {% endif %}
+        {% if objective %}
+        <p class="ta-meta">
+            Objective: {{ objective }}
         </p>
+        {% endif %}
 
-        {% if problem_type == "Classification" %}
+        {% include "_timeline.html" %}
 
-        <table>
+    </header>
 
-            <tr>
 
-                <th>Model</th>
-                <th>CV F1</th>
-                <th>Accuracy</th>
-                <th>Precision</th>
-                <th>Recall</th>
-                <th>F1</th>
-                <th>ROC-AUC</th>
+    <main id="ta-main">
 
-            </tr>
+        <!-- ============================================= -->
+        <!-- BEST MODEL -->
+        <!-- ============================================= -->
 
-            {% for model in best["ranked_results"] %}
+        {% if best %}
 
-            <tr {% if model["name"] == best["name"] %}class="best-row"{% endif %}>
+        <section class="ta-card ta-card--glow" aria-label="Selected model">
 
-                <td>{{ model["name"] }}</td>
+            <h2>
+                Selected Model
+                <span class="ta-badge ta-badge--ok">✓ BEST</span>
+            </h2>
 
-                <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
+            <h3>
+                {{ best["name"] }}
+            </h3>
 
-                <td>{{ model["accuracy"] }}</td>
+            {% if best.get("primary_metric") %}
 
-                <td>{{ model["precision"] }}</td>
+            <p>
+                <strong>Primary selection metric:</strong>
+                <span class="ta-badge ta-badge--info">{{ best["primary_metric"] }}</span>
+            </p>
 
-                <td>{{ model["recall"] }}</td>
+            {% endif %}
 
-                <td>{{ model["f1"] }}</td>
+            <p>
+                {{ best["reason"] }}
+            </p>
 
-                <td>{{ model["roc_auc"] if model["roc_auc"] is not none else "-" }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-        {% else %}
-
-        <table>
-
-            <tr>
-
-                <th>Model</th>
-                <th>CV R2</th>
-                <th>R2</th>
-                <th>MAE</th>
-                <th>MSE</th>
-                <th>RMSE</th>
-
-            </tr>
-
-            {% for model in best["ranked_results"] %}
-
-            <tr {% if model["name"] == best["name"] %}class="best-row"{% endif %}>
-
-                <td>{{ model["name"] }}</td>
-
-                <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
-
-                <td>{{ model["r2"] }}</td>
-
-                <td>{{ model["mae"] }}</td>
-
-                <td>{{ model["mse"] }}</td>
-
-                <td>{{ model["rmse"] }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
+        </section>
 
         {% endif %}
 
-    </div>
+
+        {% if confirmed_groups %}
+
+        <section class="ta-card" aria-label="Group aware split applied">
+
+            <h2>
+                Validation Split
+            </h2>
+
+            <p>
+                <span class="ta-badge ta-badge--info">group-aware</span>
+                Training and validation kept these entities whole:
+                {{ confirmed_groups | join(", ") }}
+                {% if training.get("used_group_split") %}
+                (applied split on {{ training["used_group_split"] }}).
+                {% endif %}
+            </p>
+
+        </section>
+
+        {% elif training.get("used_group_split") %}
+
+        <section class="ta-card" aria-label="Group aware split applied">
+
+            <h2>
+                Validation Split
+            </h2>
+
+            <p>
+                <span class="ta-badge ta-badge--info">group-aware</span>
+                Group-aware split on
+                {{ training["used_group_split"] }}
+                (entities kept whole across train and test).
+            </p>
+
+        </section>
+
+        {% endif %}
 
 
-    <!-- ================================================= -->
-    <!-- CONFUSION MATRIX (BEST MODEL, CLASSIFICATION) -->
-    <!-- ================================================= -->
+        <!-- ============================================= -->
+        <!-- MODEL CARDS -->
+        <!-- ============================================= -->
 
-    {% if problem_type == "Classification" and best %}
+        {% if problem_type == "Classification" %}
 
-    {% set best_full = training["results"] | selectattr("name", "equalto", best["name"]) | list %}
-    {% set best_metrics = best_full[0] if best_full else none %}
+        <section aria-label="Model comparison cards">
 
-    {% if best_metrics and best_metrics["confusion_matrix"] %}
+            <h2>Model Cards</h2>
 
-    <div class="card">
+            {% for model in best["ranked_results"] %}
 
-        <h2>
-            Confusion Matrix
-        </h2>
+            <div class="ta-card {% if model['name'] == best['name'] %}ta-card--success{% endif %}">
 
-        <p class="meta">
-            Rows: actual class &nbsp;|&nbsp; Columns: predicted class
-            &nbsp;|&nbsp; Best model: {{ best["name"] }}
-        </p>
+                <h3>
+                    {{ model["name"] }}
+                    {% if model["name"] == best["name"] %}
+                    <span class="ta-badge ta-badge--ok">✓ selected</span>
+                    {% endif %}
+                </h3>
 
-        <div class="confusion">
+                <div class="ta-grid">
 
-            <table>
+                    <div>
+                        <div class="ta-label">CV F1 (primary)</div>
+                        <div class="ta-stat">{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</div>
+                        <span class="ta-note">± {{ model["cv_std"] if model["cv_std"] is not none else "-" }} across folds</span>
+                    </div>
 
-                <tr>
-                    <th>Actual \ Predicted</th>
-                    {% for label in best_metrics["labels"] %}
-                    <th>{{ label }}</th>
+                    <div>
+                        <div class="ta-label">Test Accuracy</div>
+                        <div class="ta-stat">{{ model["accuracy"] }}</div>
+                    </div>
+
+                    <div>
+                        <div class="ta-label">Test Macro-F1</div>
+                        <div class="ta-stat">{{ model.get("macro_f1", "-") }}</div>
+                    </div>
+
+                    <div>
+                        <div class="ta-label">Test ROC-AUC</div>
+                        <div class="ta-stat">{{ model["roc_auc"] if model["roc_auc"] is not none else "-" }}</div>
+                    </div>
+
+                </div>
+
+                {% if model.get("train_seconds") is not none %}
+                <p class="ta-note">
+                    Training time: {{ model["train_seconds"] }}s.
+                </p>
+                {% endif %}
+
+                {% if model.get("cv_mean") is none %}
+                <p class="ta-warning-text">
+                    <span class="ta-badge ta-badge--bad">✕ CV failed</span>
+                    {{ model.get("error") or "Cross-validation did not complete for this model." }}
+                </p>
+                {% endif %}
+
+            </div>
+
+            {% endfor %}
+
+        </section>
+
+        {% endif %}
+
+
+        <!-- ============================================= -->
+        <!-- MODEL COMPARISON TABLE -->
+        <!-- ============================================= -->
+
+        <section class="ta-card" aria-label="Model comparison">
+
+            <h2>
+                Model Comparison
+            </h2>
+
+            <p class="ta-meta">
+                Train size: {{ training["X_train_shape"][0] }}
+                &nbsp;|&nbsp;
+                Test size: {{ training["X_test_shape"][0] }}
+                &nbsp;|&nbsp;
+                5-fold cross-validation
+                {% if training.get("n_transformed_features") %}
+                &nbsp;|&nbsp;
+                Final model features:
+                {{ training["n_transformed_features"] }}
+                {% endif %}
+                {% if training.get("used_group_split") %}
+                &nbsp;|&nbsp;
+                Group-aware split on
+                {{ training["used_group_split"] }}
+                {% endif %}
+            </p>
+
+            {% if problem_type == "Classification" %}
+
+            <div class="ta-table-wrap" role="region" aria-label="Classification comparison" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        Cross-validation scores with test-set metrics per model.
+                    </caption>
+
+                    <tr>
+
+                        <th scope="col">Model</th>
+                        <th scope="col">CV F1</th>
+                        <th scope="col">CV Std</th>
+                        <th scope="col">Accuracy</th>
+                        <th scope="col">Precision</th>
+                        <th scope="col">Recall</th>
+                        <th scope="col">F1</th>
+                        <th scope="col">Macro-F1</th>
+                        <th scope="col">Weighted-F1</th>
+                        <th scope="col">Balanced Acc.</th>
+                        <th scope="col">ROC-AUC</th>
+                        <th scope="col">Train (s)</th>
+
+                    </tr>
+
+                    {% for model in best["ranked_results"] %}
+
+                    <tr {% if model["name"] == best["name"] %}class="best-row"{% endif %}>
+
+                        <td>
+                            {{ model["name"] }}
+                            {% if model["name"] == best["name"] %}
+                            <span class="ta-badge ta-badge--ok">✓</span>
+                            {% endif %}
+                        </td>
+
+                        <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
+
+                        <td>{{ model["cv_std"] if model["cv_std"] is not none else "-" }}</td>
+
+                        <td>{{ model["accuracy"] }}</td>
+
+                        <td>{{ model["precision"] }}</td>
+
+                        <td>{{ model["recall"] }}</td>
+
+                        <td>{{ model["f1"] }}</td>
+
+                        <td>{{ model.get("macro_f1", "-") }}</td>
+
+                        <td>{{ model.get("weighted_f1", "-") }}</td>
+
+                        <td>{{ model.get("balanced_accuracy", "-") }}</td>
+
+                        <td>{{ model["roc_auc"] if model["roc_auc"] is not none else "-" }}</td>
+
+                        <td>{{ model.get("train_seconds", "-") }}</td>
+
+                    </tr>
+
                     {% endfor %}
-                </tr>
 
-                {% for row in best_metrics["confusion_matrix"] %}
+                </table>
 
-                <tr>
+            </div>
 
-                    <td>
-                        <strong>
-                            {{ best_metrics["labels"][loop.index0] }}
-                        </strong>
-                    </td>
+            {% else %}
 
-                    {% for value in row %}
+            <div class="ta-table-wrap" role="region" aria-label="Regression comparison" tabindex="0">
 
-                    <td>
-                        {{ value }}
-                    </td>
+                <table>
+
+                    <caption class="ta-note">
+                        Cross-validation scores with test-set metrics per model.
+                    </caption>
+
+                    <tr>
+
+                        <th scope="col">Model</th>
+                        <th scope="col">CV R2</th>
+                        <th scope="col">CV Std</th>
+                        <th scope="col">R2</th>
+                        <th scope="col">MAE</th>
+                        <th scope="col">MSE</th>
+                        <th scope="col">RMSE</th>
+                        <th scope="col">Train (s)</th>
+
+                    </tr>
+
+                    {% for model in best["ranked_results"] %}
+
+                    <tr {% if model["name"] == best["name"] %}class="best-row"{% endif %}>
+
+                        <td>
+                            {{ model["name"] }}
+                            {% if model["name"] == best["name"] %}
+                            <span class="ta-badge ta-badge--ok">✓</span>
+                            {% endif %}
+                        </td>
+
+                        <td>{{ model["cv_mean"] if model["cv_mean"] is not none else "-" }}</td>
+
+                        <td>{{ model["cv_std"] if model["cv_std"] is not none else "-" }}</td>
+
+                        <td>{{ model["r2"] }}</td>
+
+                        <td>{{ model["mae"] }}</td>
+
+                        <td>{{ model["mse"] }}</td>
+
+                        <td>{{ model["rmse"] }}</td>
+
+                        <td>{{ model.get("train_seconds", "-") }}</td>
+
+                    </tr>
 
                     {% endfor %}
 
-                </tr>
+                </table>
 
-                {% endfor %}
+            </div>
 
-            </table>
+            {% endif %}
 
-        </div>
-
-    </div>
-
-    {% endif %}
-
-    {% endif %}
+        </section>
 
 
-    <!-- ================================================= -->
-    <!-- NEXT STAGE -->
-    <!-- ================================================= -->
+        <!-- ============================================= -->
+        <!-- IMBALANCE + PER-CLASS (classification)        -->
+        <!-- ============================================= -->
 
-    <div class="card">
+        {% if problem_type == "Classification" and best %}
 
-        <h2>
-            Model Evaluation Complete
-        </h2>
+        {% set best_full = training["results"] | selectattr("name", "equalto", best["name"]) | list %}
+        {% set best_metrics = best_full[0] if best_full else none %}
 
-        <p>
-            TaskAware can now explain the predictions of the
-            selected model
-            <strong>
-                {{ best["name"] if best else "" }}
-            </strong>.
-        </p>
+        {% if best_metrics and best_metrics.get("imbalance_warning") %}
 
-        <form
-            action="/explainability"
-            method="POST"
-        >
+        <section class="ta-card ta-card--warning" aria-label="Class imbalance warning">
 
-            <input
-                type="hidden"
-                name="filename"
-                value="{{ filename }}"
+            <h2>
+                Class Imbalance
+            </h2>
+
+            <p>
+                <span class="ta-badge ta-badge--warn">! imbalanced</span>
+                {{ best_metrics["imbalance_warning"] }}
+            </p>
+
+        </section>
+
+        {% endif %}
+
+        {% if best_metrics and best_metrics.get("per_class") %}
+
+        <section class="ta-card" aria-label="Per-class metrics">
+
+            <h2>
+                Per-Class Metrics
+                <span class="ta-note">(best model: {{ best["name"] }})</span>
+            </h2>
+
+            {% if class_meanings %}
+
+            <p>
+                <strong>Your class notes:</strong>
+                {{ class_meanings }}
+            </p>
+
+            {% endif %}
+
+            <div class="ta-table-wrap" role="region" aria-label="Per-class metrics" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        Precision, recall, F1 and support for each class.
+                    </caption>
+
+                    <tr>
+                        <th scope="col">Class</th>
+                        <th scope="col">Precision</th>
+                        <th scope="col">Recall</th>
+                        <th scope="col">F1</th>
+                        <th scope="col">Support</th>
+                    </tr>
+
+                    {% for row in best_metrics["per_class"] %}
+
+                    <tr>
+
+                        <td>{{ row["label"] }}</td>
+
+                        <td>{{ row["precision"] }}</td>
+
+                        <td>{{ row["recall"] }}</td>
+
+                        <td>{{ row["f1"] }}</td>
+
+                        <td>{{ row["count"] }}</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+        </section>
+
+        {% endif %}
+
+        {% if best_metrics and best_metrics["confusion_matrix"] %}
+
+        <section class="ta-card" aria-label="Confusion matrix">
+
+            <h2>
+                Confusion Matrix
+            </h2>
+
+            <p class="ta-meta">
+                Rows: actual class &nbsp;|&nbsp; Columns: predicted class
+                &nbsp;|&nbsp; Best model: {{ best["name"] }}
+            </p>
+
+            <div class="ta-table-wrap" role="region" aria-label="Confusion matrix" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        Counts of actual versus predicted classes.
+                    </caption>
+
+                    <tr>
+                        <th scope="col">Actual \ Predicted</th>
+                        {% for label in best_metrics["labels"] %}
+                        <th scope="col">{{ label }}</th>
+                        {% endfor %}
+                    </tr>
+
+                    {% for row in best_metrics["confusion_matrix"] %}
+
+                    <tr>
+
+                        <td>
+                            <strong>
+                                {{ best_metrics["labels"][loop.index0] }}
+                            </strong>
+                        </td>
+
+                        {% for value in row %}
+
+                        <td>
+                            {{ value }}
+                        </td>
+
+                        {% endfor %}
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+        </section>
+
+        {% endif %}
+
+        {% endif %}
+
+
+        <!-- ============================================= -->
+        <!-- NEXT STAGE -->
+        <!-- ============================================= -->
+
+        <section class="ta-card ta-card--glow" aria-label="Next stage">
+
+            <h2>
+                Model Evaluation Complete
+            </h2>
+
+            <p>
+                TaskAware can now explain the predictions of the
+                selected model
+                <strong>
+                    {{ best["name"] if best else "" }}
+                </strong>.
+            </p>
+
+            <form
+                action="/explainability"
+                method="POST"
             >
 
-            <input
-                type="hidden"
-                name="target"
-                value="{{ target_column }}"
-            >
+                <input
+                    type="hidden"
+                    name="filename"
+                    value="{{ filename }}"
+                >
 
-            <input
-                type="hidden"
-                name="problem_type"
-                value="{{ problem_type }}"
-            >
+                <input
+                    type="hidden"
+                    name="target"
+                    value="{{ target_column }}"
+                >
 
-            <input
-                type="hidden"
-                name="objective"
-                value="{{ objective }}"
-            >
+                <input
+                    type="hidden"
+                    name="problem_type"
+                    value="{{ problem_type }}"
+                >
 
-            <input
-                type="hidden"
-                name="selected_model"
-                value="{{ best['name'] if best else '' }}"
-            >
+                <input
+                    type="hidden"
+                    name="objective"
+                    value="{{ objective }}"
+                >
 
-            <button type="submit">
-                Explain Model Predictions
-            </button>
+                <input
+                    type="hidden"
+                    name="selected_model"
+                    value="{{ best['name'] if best else '' }}"
+                >
 
-        </form>
+                <button type="submit" class="ta-btn">
+                    Explain Model Predictions
+                </button>
 
-    </div>
+            </form>
+
+        </section>
+
+    </main>
 
 
-    <br>
+    <footer>
 
-    <a href="/upload">
-        ← Upload Another Dataset
-    </a>
+        <br>
+
+        <a href="/upload">
+            ← Upload Another Dataset
+        </a>
+
+    </footer>
 
 </body>
 

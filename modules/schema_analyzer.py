@@ -1147,6 +1147,31 @@ def _detect_group(
 
     if has_repeats and role == "identifier":
 
+        # An identifier-like name without entity evidence
+        # (e.g. post_id) is ambiguous: it is never
+        # auto-used for group splitting, but the user may
+        # confirm it explicitly.
+        if not name_suggests_entity:
+            return (
+                0.4,
+                True,
+                "low",
+                repeated_entity_count,
+                max_rows_per_entity,
+                [
+                    "An identifier-like column with repeated "
+                    "values, but the name does not clearly "
+                    "indicate a repeated entity. Confirm "
+                    "before any group-aware use."
+                ],
+                (
+                    "Ambiguous group candidate. This column "
+                    "is excluded from automatic group-aware "
+                    "splitting until you confirm that its "
+                    "repeated values identify real entities."
+                ),
+            )
+
         return (
             0.8,
             True,
@@ -1669,6 +1694,21 @@ def _record_for(columns, column):
     return {}
 
 
+def _ambiguous_group_candidates(columns, target_column):
+    """
+    Low-confidence group candidates that require explicit
+    user confirmation before any group-aware use. They are
+    never applied automatically.
+    """
+    return [
+        record["column"]
+        for record in columns
+        if record["column"] != target_column
+        and record.get("group_candidate")
+        and record.get("group_confidence") == "low"
+    ]
+
+
 def _validation_strategy(
     df,
     group_columns,
@@ -1734,6 +1774,18 @@ def _validation_strategy(
     else:
         strategy = base_strategy
 
+    ambiguous = _ambiguous_group_candidates(
+        columns, target_column
+    )
+
+    if ambiguous:
+        reason.append(
+            "ambiguous group candidates need confirmation: "
+            f"{', '.join(ambiguous)}"
+        )
+
+    confirmation_required = bool(ambiguous)
+
     return {
         "strategy": strategy,
         "group_columns": list(group_columns),
@@ -1745,6 +1797,18 @@ def _validation_strategy(
             if reason
             else "no repeated groups or time structure detected"
         ),
+        "group_confirmation_required": confirmation_required,
+        "group_confirmation_status": (
+            "pending" if confirmation_required else "not_required"
+        ),
+        "confirmed_group_column": None,
+        "group_validation_strategy": strategy,
+        "group_validation_reason": (
+            "; ".join(reason)
+            if reason
+            else "no repeated groups or time structure detected"
+        ),
+        "ambiguous_group_candidates": ambiguous,
     }
 
 

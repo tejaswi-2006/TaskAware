@@ -1,0 +1,711 @@
+/* ============================================================
+   TaskAware analytics UI — professional dark theme.
+   - Dark navy/charcoal surfaces, blue/purple accents.
+   - Glass cards, soft shadows, thin glowing borders.
+   - No continuous animation; honors prefers-reduced-motion.
+   - .simple-view removes gradients, shadows and effects.
+   ============================================================ */
+
+:root {
+    --ta-bg: #0d1526;
+    --ta-bg-2: #111c33;
+    --ta-card: rgba(255, 255, 255, 0.045);
+    --ta-card-border: rgba(148, 163, 255, 0.28);
+    --ta-accent-1: #4f7cff;
+    --ta-accent-2: #8b5cf6;
+    --ta-text: #f2f5ff;
+    --ta-muted: #aab4d4;
+    --ta-faint: #7c86a8;
+    --ta-green: #34d399;
+    --ta-amber: #fbbf24;
+    --ta-red: #f87171;
+    --ta-radius: 14px;
+    --ta-shadow: 0 10px 30px rgba(2, 6, 23, 0.55);
+    --ta-glow: 0 0 0 1px var(--ta-card-border),
+        0 0 18px rgba(99, 102, 241, 0.18);
+    --ta-font: "Segoe UI", Arial, Helvetica, sans-serif;
+}
+
+/* ---------- base ---------- */
+
+html {
+    color-scheme: dark;
+}
+
+body.ta-body {
+    font-family: var(--ta-font);
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 22px 60px;
+    line-height: 1.65;
+    color: var(--ta-text);
+    background:
+        radial-gradient(
+            1100px 420px at 15% -80px,
+            rgba(79, 124, 255, 0.22),
+            transparent 60%
+        ),
+        radial-gradient(
+            900px 380px at 90% -60px,
+            rgba(139, 92, 246, 0.20),
+            transparent 60%
+        ),
+        linear-gradient(180deg, var(--ta-bg-2), var(--ta-bg));
+    min-height: 100vh;
+}
+
+.ta-body h1,
+.ta-body h2,
+.ta-body h3 {
+    color: var(--ta-text);
+    letter-spacing: 0.01em;
+}
+
+.ta-body h1 {
+    font-size: 30px;
+    margin: 6px 0 4px;
+}
+
+.ta-body a {
+    color: #9db9ff;
+}
+
+.ta-body a:hover {
+    color: #c4d4ff;
+}
+
+/* ---------- accessibility: skip link + focus ---------- */
+
+.ta-skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    background: var(--ta-accent-1);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 0 0 8px 0;
+    z-index: 100;
+}
+
+.ta-skip-link:focus {
+    left: 0;
+}
+
+.ta-body :focus-visible {
+    outline: 3px solid var(--ta-amber);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* ---------- top bar / toggles ---------- */
+
+.ta-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    margin-bottom: 18px;
+}
+
+.ta-brand {
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: linear-gradient(
+        90deg,
+        var(--ta-accent-1),
+        var(--ta-accent-2)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.ta-controls {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ta-toggle {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--ta-card-border);
+    color: var(--ta-text);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.ta-toggle[aria-pressed="true"] {
+    background: linear-gradient(
+        90deg,
+        var(--ta-accent-1),
+        var(--ta-accent-2)
+    );
+    border-color: transparent;
+}
+
+/* ---------- cards ---------- */
+
+.ta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px;
+    margin: 16px 0;
+}
+
+.ta-card {
+    background: var(--ta-card);
+    border: 1px solid var(--ta-card-border);
+    border-radius: var(--ta-radius);
+    padding: 18px 20px;
+    margin: 16px 0;
+    box-shadow: var(--ta-shadow);
+    backdrop-filter: blur(6px);
+}
+
+.ta-card--glow {
+    box-shadow: var(--ta-shadow), var(--ta-glow);
+}
+
+.ta-card--success {
+    border-color: rgba(52, 211, 153, 0.55);
+}
+
+.ta-card--warning {
+    border-color: rgba(251, 191, 36, 0.55);
+    background: rgba(251, 191, 36, 0.06);
+}
+
+.ta-card--danger {
+    border-color: rgba(248, 113, 113, 0.6);
+    background: rgba(248, 113, 113, 0.06);
+}
+
+.ta-stat {
+    font-size: 26px;
+    font-weight: 700;
+    margin: 2px 0;
+}
+
+.ta-label {
+    color: var(--ta-muted);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ---------- badges (never color-only: icon + text) ---------- */
+
+.ta-badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.ta-badge--role {
+    background: rgba(79, 124, 255, 0.16);
+    border-color: rgba(79, 124, 255, 0.55);
+    color: #c9d8ff;
+}
+
+.ta-badge--ok {
+    background: rgba(52, 211, 153, 0.14);
+    border-color: rgba(52, 211, 153, 0.6);
+    color: #a7f3d0;
+}
+
+.ta-badge--warn {
+    background: rgba(251, 191, 36, 0.14);
+    border-color: rgba(251, 191, 36, 0.6);
+    color: #fde68a;
+}
+
+.ta-badge--bad {
+    background: rgba(248, 113, 113, 0.14);
+    border-color: rgba(248, 113, 113, 0.6);
+    color: #fecaca;
+}
+
+.ta-badge--info {
+    background: rgba(139, 92, 246, 0.16);
+    border-color: rgba(139, 92, 246, 0.6);
+    color: #ddd0ff;
+}
+
+/* ---------- tables ---------- */
+
+.ta-table-wrap {
+    overflow-x: auto;
+}
+
+.ta-body table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.ta-body th,
+.ta-body td {
+    border: 1px solid rgba(148, 163, 255, 0.22);
+    padding: 9px 10px;
+    text-align: left;
+}
+
+.ta-body th {
+    background: rgba(79, 124, 255, 0.14);
+    color: var(--ta-text);
+}
+
+.ta-body tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.best-row td {
+    background: rgba(52, 211, 153, 0.10);
+    font-weight: bold;
+}
+
+/* ---------- legacy class compatibility ----------
+   Older templates keep working unchanged; new code
+   should prefer the ta-* classes above. */
+.ta-body .card {
+    background: var(--ta-card);
+    border: 1px solid var(--ta-card-border);
+    border-radius: var(--ta-radius);
+    padding: 18px 20px;
+    margin: 16px 0;
+    box-shadow: var(--ta-shadow);
+}
+
+.ta-body .card.success,
+.ta-body .success {
+    border: 2px solid rgba(52, 211, 153, 0.55);
+}
+
+.ta-body .card.warning,
+.ta-body .warning {
+    border: 2px solid rgba(251, 191, 36, 0.55);
+    background: rgba(251, 191, 36, 0.06);
+}
+
+.ta-body .recommended {
+    border: 2px solid var(--ta-accent-1);
+    box-shadow: var(--ta-shadow), var(--ta-glow);
+}
+
+.ta-body .meta,
+.ta-body .note {
+    color: var(--ta-muted);
+}
+
+.ta-body .badge,
+.ta-body .source-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.ta-body .badge {
+    background: rgba(52, 211, 153, 0.16);
+    border: 1px solid rgba(52, 211, 153, 0.6);
+    color: #a7f3d0;
+}
+
+.ta-body .source-okf {
+    background: rgba(52, 211, 153, 0.16);
+    color: #a7f3d0;
+}
+
+.ta-body .source-llm {
+    background: rgba(79, 124, 255, 0.16);
+    color: #c9d8ff;
+}
+
+.ta-body .source-fallback {
+    background: rgba(251, 191, 36, 0.16);
+    color: #fde68a;
+}
+
+.ta-body .warning-text {
+    color: var(--ta-amber);
+}
+
+.ta-body .explanation,
+.ta-body .explanation-text {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--ta-card-border);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.ta-body .summary {
+    background: rgba(79, 124, 255, 0.10);
+    border: 2px solid var(--ta-accent-1);
+}
+
+.ta-body button:not(.ta-btn):not(.ta-toggle) {
+    display: inline-block;
+    padding: 11px 22px;
+    font-size: 15px;
+    cursor: pointer;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: linear-gradient(
+        90deg,
+        var(--ta-accent-1),
+        var(--ta-accent-2)
+    );
+    color: #fff;
+    font-weight: 600;
+}
+
+.ta-body .chart img {
+    max-width: 100%;
+    border: 1px solid var(--ta-card-border);
+    border-radius: 10px;
+}
+
+.ta-body .confusion {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.ta-body .confusion table {
+    width: auto;
+}
+
+.ta-body ul.steps {
+    padding-left: 20px;
+}
+
+.ta-body ul.steps li {
+    margin: 6px 0;
+}
+
+.ta-body .row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.ta-body .col {
+    flex: 1;
+    min-width: 300px;
+}
+
+/* ---------- buttons / forms ---------- */
+
+.ta-btn {
+    display: inline-block;
+    padding: 11px 22px;
+    font-size: 15px;
+    cursor: pointer;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: linear-gradient(
+        90deg,
+        var(--ta-accent-1),
+        var(--ta-accent-2)
+    );
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ta-btn--ghost {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--ta-card-border);
+    color: var(--ta-text);
+}
+
+.ta-body select,
+.ta-body textarea,
+.ta-body input[type="text"] {
+    width: 100%;
+    padding: 11px 12px;
+    font-size: 15px;
+    border-radius: 10px;
+    border: 1px solid var(--ta-card-border);
+    background: rgba(2, 6, 23, 0.6);
+    color: var(--ta-text);
+    box-sizing: border-box;
+}
+
+.ta-note {
+    color: var(--ta-muted);
+    font-size: 13px;
+}
+
+.plain-summary {
+    font-size: 17px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--ta-card-border);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.section-body {
+    white-space: pre-wrap;
+    font-size: 15px;
+}
+
+ul.top-features {
+    font-size: 15px;
+}
+
+/* ---------- workflow timeline ---------- */
+
+.ta-timeline {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0;
+    margin: 14px 0;
+}
+
+.ta-timeline li {
+    flex: 1 1 110px;
+    min-width: 104px;
+    border: 1px solid var(--ta-card-border);
+    border-radius: 12px;
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 13px;
+    background: rgba(255, 255, 255, 0.03);
+    /* subtle static depth, no animation */
+    transform: perspective(500px) translateZ(0);
+}
+
+.ta-timeline .ta-stage-icon {
+    display: block;
+    font-size: 18px;
+    margin-bottom: 2px;
+}
+
+.ta-timeline li[data-state="done"] {
+    border-color: rgba(52, 211, 153, 0.6);
+}
+
+.ta-timeline li[data-state="active"] {
+    border-color: var(--ta-accent-1);
+    box-shadow: var(--ta-glow);
+    background: rgba(79, 124, 255, 0.12);
+    transform: perspective(500px) translateZ(14px);
+}
+
+.ta-timeline li[data-state="warning"] {
+    border-color: rgba(251, 191, 36, 0.65);
+}
+
+.ta-timeline li[data-state="failed"] {
+    border-color: rgba(248, 113, 113, 0.7);
+}
+
+/* ---------- CSS bar charts (with table fallback) ---------- */
+
+.ta-bars {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.ta-bar-row {
+    display: grid;
+    grid-template-columns: minmax(140px, 220px) 1fr 70px;
+    gap: 10px;
+    align-items: center;
+    font-size: 14px;
+}
+
+.ta-bar-track {
+    height: 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+}
+
+.ta-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(
+        90deg,
+        var(--ta-accent-1),
+        var(--ta-accent-2)
+    );
+}
+
+.ta-bar-fill--ok {
+    background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+/* ---------- subtle 3D chart tilt (opt-in only) ---------- */
+
+.ta-chart-stage {
+    perspective: 1200px;
+}
+
+.ta-chart-3d img {
+    transition: transform 0.35s ease;
+    transform: rotateX(24deg) rotateY(-14deg) scale(0.96);
+}
+
+.ta-chart-frame img {
+    max-width: 100%;
+    border: 1px solid var(--ta-card-border);
+    border-radius: 10px;
+}
+
+/* ---------- expandable technical details ---------- */
+
+.ta-body details {
+    border: 1px solid var(--ta-card-border);
+    border-radius: var(--ta-radius);
+    padding: 14px 18px;
+    margin: 16px 0;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.ta-body summary {
+    cursor: pointer;
+    font-size: 17px;
+    font-weight: bold;
+}
+
+/* ---------- misc ---------- */
+
+.ta-meta {
+    color: var(--ta-muted);
+}
+
+.ta-warning-text {
+    color: var(--ta-amber);
+}
+
+.ta-kbd-hint {
+    font-size: 12px;
+    color: var(--ta-faint);
+}
+
+.ta-chart-flex {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 720px) {
+    .ta-body {
+        padding: 18px 12px 48px;
+    }
+
+    .ta-body h1 {
+        font-size: 24px;
+    }
+
+    .ta-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .ta-bar-row {
+        grid-template-columns: 1fr;
+        gap: 2px;
+    }
+
+    .ta-timeline li {
+        flex: 1 1 46%;
+    }
+}
+
+@media (max-width: 440px) {
+    .ta-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Restrained pulse for the current stage only.
+   Slow opacity shift; fully disabled under reduced motion. */
+@keyframes ta-pulse {
+    0%, 100% {
+        box-shadow: var(--ta-shadow), var(--ta-glow);
+    }
+    50% {
+        box-shadow: var(--ta-shadow),
+            0 0 26px rgba(99, 102, 241, 0.32);
+    }
+}
+
+.ta-timeline li[data-state="active"] {
+    animation: ta-pulse 3.5s ease-in-out infinite;
+}
+
+/* ---------- reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .ta-body *,
+    .ta-body *::before,
+    .ta-body *::after {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    .ta-timeline li[data-state="active"] {
+        transform: none;
+    }
+}
+
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+    animation: none !important;
+    transition: none !important;
+}
+
+html[data-motion="reduced"] .ta-timeline li[data-state="active"] {
+    transform: none;
+}
+
+/* ---------- simple view: flat, high-clarity ---------- */
+
+html[data-view="simple"] body.ta-body {
+    background: #101828;
+}
+
+html[data-view="simple"] .ta-card,
+html[data-view="simple"] details,
+html[data-view="simple"] .ta-timeline li {
+    background: #16213a;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+html[data-view="simple"] .ta-bar-fill,
+html[data-view="simple"] .ta-btn,
+html[data-view="simple"] .ta-brand {
+    background: #2f5fe0;
+}
+
+html[data-view="simple"] .ta-brand {
+    -webkit-background-clip: unset;
+    background-clip: unset;
+    color: #fff;
+}
+
+html[data-view="simple"] .ta-chart-3d img {
+    transform: none;
+}

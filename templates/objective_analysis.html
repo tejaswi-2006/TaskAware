@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-motion="full" data-view="rich">
 
 <head>
 
@@ -10,647 +10,640 @@
 
     <title>TaskAware | Target Analysis</title>
 
-    <style>
+    <link rel="stylesheet"
+          href="/static/css/taskaware.css">
 
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1100px;
-            margin: 40px auto;
-            padding: 20px;
-            line-height: 1.6;
-        }
-
-        .card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-
-        .recommended {
-            border: 2px solid #333;
-        }
-
-        .warning {
-            border: 2px solid #999;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        th,
-        td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: left;
-        }
-
-        th {
-            background: #f3f3f3;
-        }
-
-        button {
-            padding: 10px 18px;
-            cursor: pointer;
-        }
-
-        select {
-            width: 100%;
-            padding: 10px;
-        }
-
-    </style>
+    <script src="/static/js/taskaware.js" defer></script>
 
 </head>
 
 
-<body>
+<body class="ta-body">
 
-    <h1>
-        TaskAware Target Analysis
-    </h1>
+    <a class="ta-skip-link" href="#ta-main">
+        Skip to main content
+    </a>
 
+    {% include "_toggles.html" %}
 
-    <!-- ================================================= -->
-    <!-- OBJECTIVE -->
-    <!-- ================================================= -->
+    <header>
 
-    <div class="card">
+        <h1>
+            TaskAware Target Analysis
+        </h1>
 
-        <h2>
-            User Objective
-        </h2>
+        {% include "_timeline.html" %}
 
-        {% if objective %}
-
-        <p>
-            {{ objective }}
-        </p>
-
-        {% else %}
-
-        <p>
-            No objective was provided.
-        </p>
-
-        <p>
-            TaskAware is analyzing the dataset using
-            dataset characteristics and target evidence.
-        </p>
-
-        {% endif %}
-
-    </div>
+    </header>
 
 
-    <!-- ================================================= -->
-    <!-- USER PROVIDED TARGET -->
-    <!-- ================================================= -->
-
-    {% if selected_info %}
-
-    <div class="card recommended">
-
-        <h2>
-            User-Provided Target
-        </h2>
-
-        <h3>
-            {{ selected_info["column"] }}
-        </h3>
-
-
-        <p>
-            <strong>
-                Suitability:
-            </strong>
-
-            {{ selected_info["suitability"] }}
-        </p>
-
-
-        <p>
-            <strong>
-                Confidence:
-            </strong>
-
-            {{ selected_info["confidence"] }}
-        </p>
-
-
-        <p>
-            <strong>
-                Data Type:
-            </strong>
-
-            {{ selected_info["type"] }}
-        </p>
-
-
-        <p>
-            <strong>
-                Unique Values:
-            </strong>
-
-            {{ selected_info["unique_values"] }}
-        </p>
-
-
-        <p>
-            <strong>
-                Missing Values:
-            </strong>
-
-            {{ selected_info["missing_values"] }}
-        </p>
-
-
-        <p>
-            <strong>
-                Possible Problem Type:
-            </strong>
-
-            {{ selected_info["possible_problem_type"] }}
-        </p>
-
+    <main id="ta-main">
 
         <!-- ============================================= -->
-        <!-- POSITIVE REASONS -->
+        <!-- OBJECTIVE -->
         <!-- ============================================= -->
 
-        <h3>
-            Why this target can be used
-        </h3>
+        <section class="ta-card" aria-label="User objective">
 
-        {% if selected_info["positive_reasons"] %}
+            <h2>
+                User Objective
+            </h2>
 
-        <ul>
+            {% if objective %}
 
-            {% for reason in selected_info["positive_reasons"] %}
+            <p>
+                {{ objective }}
+            </p>
 
-            <li>
-                {{ reason }}
-            </li>
+            {% else %}
 
-            {% endfor %}
+            <p>
+                No objective was provided.
+            </p>
 
-        </ul>
+            <p>
+                TaskAware is analyzing the dataset using
+                dataset characteristics and target evidence.
+            </p>
 
-        {% else %}
+            {% endif %}
 
-        <p>
-            TaskAware did not find strong positive
-            evidence supporting this target.
-        </p>
-
-        {% endif %}
+        </section>
 
 
-        <!-- ============================================= -->
-        <!-- NEGATIVE REASONS -->
-        <!-- ============================================= -->
-
-        <h3>
-            Potential Concerns
-        </h3>
-
-        {% if selected_info["negative_reasons"] %}
-
-        <ul>
-
-            {% for reason in selected_info["negative_reasons"] %}
-
-            <li>
-                {{ reason }}
-            </li>
-
-            {% endfor %}
-
-        </ul>
-
-        {% else %}
-
-        <p>
-            No major concerns were detected.
-        </p>
-
-        {% endif %}
-
+        {% if selected_info %}
 
         <!-- ============================================= -->
-        <!-- CONFIRM -->
+        <!-- USER PROVIDED TARGET -->
         <!-- ============================================= -->
 
-        {% if not selected_info["is_id"]
-              and selected_info["suitability"] != "Not Recommended" %}
-
-        <form
-            action="/confirm-target"
-            method="POST"
-        >
-
-            <input
-                type="hidden"
-                name="target"
-                value="{{ selected_info['column'] }}"
-            >
-
-            <input
-                type="hidden"
-                name="filename"
-                value="{{ filename }}"
-            >
-
-            <input
-                type="hidden"
-                name="objective"
-                value="{{ objective }}"
-            >
-
-            <button type="submit">
-
-                Confirm This Target
-
-            </button>
-
-        </form>
-
-        {% else %}
-
-        <p>
-
-            <strong>
-                This target cannot be confirmed because
-                TaskAware identified significant concerns.
-            </strong>
-
-        </p>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- NO TARGET PROVIDED -->
-    <!-- ================================================= -->
-
-    {% else %}
-
-
-    {% if candidates %}
-
-    {% set recommended = candidates[0] %}
-
-
-    <!-- ================================================= -->
-    <!-- RECOMMENDATION -->
-    <!-- ================================================= -->
-
-    <div class="card recommended">
-
-        <h2>
-            TaskAware's Recommended Target
-        </h2>
-
-        <h3>
-            {{ recommended["column"] }}
-        </h3>
-
-
-        <p>
-            <strong>
-                Suitability:
-            </strong>
-
-            {{ recommended["suitability"] }}
-        </p>
-
-
-        <p>
-            <strong>
-                Confidence:
-            </strong>
-
-            {{ recommended["confidence"] }}
-        </p>
-
-
-        <p>
-            <strong>
-                Data Type:
-            </strong>
-
-            {{ recommended["type"] }}
-        </p>
-
-
-        <p>
-            <strong>
-                Problem Type:
-            </strong>
-
-            {{ recommended["possible_problem_type"] }}
-        </p>
-
-
-        <h3>
-            Why it was recommended
-        </h3>
-
-
-        <ul>
-
-            {% for reason in recommended["positive_reasons"] %}
-
-            <li>
-                {{ reason }}
-            </li>
-
-            {% endfor %}
-
-        </ul>
-
-
-        <form
-            action="/confirm-target"
-            method="POST"
-        >
-
-            <input
-                type="hidden"
-                name="target"
-                value="{{ recommended['column'] }}"
-            >
-
-            <input
-                type="hidden"
-                name="filename"
-                value="{{ filename }}"
-            >
-
-            <input
-                type="hidden"
-                name="objective"
-                value="{{ objective }}"
-            >
-
-            <button type="submit">
-
-                Confirm Recommended Target
-
-            </button>
-
-        </form>
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- ALTERNATIVE TARGETS -->
-    <!-- ================================================= -->
-
-    {% if candidates|length > 1 %}
-
-    <div class="card">
-
-        <h2>
-            Other Possible Targets
-        </h2>
-
-        <p>
-            These targets have some evidence supporting
-            their use, but TaskAware did not rank them
-            as the primary recommendation.
-        </p>
-
-
-        <form
-            action="/compare-target"
-            method="POST"
-        >
-
-            <input
-                type="hidden"
-                name="filename"
-                value="{{ filename }}"
-            >
-
-            <input
-                type="hidden"
-                name="objective"
-                value="{{ objective }}"
-            >
-
-
-            <select
-                name="target"
-                required
-            >
-
-                <option value="">
-                    -- Select an alternative target --
-                </option>
-
-
-                {% for candidate in candidates[1:] %}
-
-                {% if not candidate["is_id"] %}
-
-                <option value="{{ candidate['column'] }}">
-
-                    {{ candidate["column"] }}
-                    —
-                    {{ candidate["suitability"] }}
-                    —
-                    {{ candidate["possible_problem_type"] }}
-
-                </option>
-
-                {% endif %}
+        <section class="ta-card ta-card--glow" aria-label="User provided target">
+
+            <h2>
+                User-Provided Target
+                <span class="ta-badge ta-badge--info">selected</span>
+            </h2>
+
+            <h3>
+                {{ selected_info["column"] }}
+            </h3>
+
+            <div class="ta-grid">
+
+                <div>
+                    <div class="ta-label">Technical Suitability</div>
+                    <p>
+                        <strong>{{ selected_info["suitability"] }}</strong>
+                        <br>
+                        <span class="ta-note">
+                            Type {{ selected_info["type"] }},
+                            {{ selected_info["unique_values"] }} unique values,
+                            {{ selected_info["missing_values"] }} missing.
+                        </span>
+                    </p>
+                </div>
+
+                <div>
+                    <div class="ta-label">Semantic Confidence</div>
+                    <p>
+                        <strong>{{ selected_info["confidence"] }}</strong>
+                    </p>
+                </div>
+
+                <div>
+                    <div class="ta-label">Expected Problem Type</div>
+                    <p>
+                        <strong>{{ selected_info["possible_problem_type"] }}</strong>
+                    </p>
+                </div>
+
+            </div>
+
+
+            <h3>
+                Why this target can be used
+            </h3>
+
+            {% if selected_info["positive_reasons"] %}
+
+            <ul>
+
+                {% for reason in selected_info["positive_reasons"] %}
+
+                <li>
+                    {{ reason }}
+                </li>
 
                 {% endfor %}
 
-            </select>
+            </ul>
+
+            {% else %}
+
+            <p>
+                TaskAware did not find strong positive
+                evidence supporting this target.
+            </p>
+
+            {% endif %}
 
 
-            <br><br>
+            <h3>
+                Potential Concerns
+            </h3>
+
+            {% if selected_info["negative_reasons"] %}
+
+            <ul>
+
+                {% for reason in selected_info["negative_reasons"] %}
+
+                <li>
+                    <span class="ta-badge ta-badge--warn">! warning</span>
+                    {{ reason }}
+                </li>
+
+                {% endfor %}
+
+            </ul>
+
+            {% else %}
+
+            <p>
+                <span class="ta-badge ta-badge--ok">✓ no major concerns</span>
+            </p>
+
+            {% endif %}
 
 
-            <button type="submit">
+            {% if not selected_info["is_id"]
+                  and selected_info["suitability"] != "Not Recommended" %}
 
-                Compare Selected Target
+            <form
+                action="/confirm-target"
+                method="POST"
+            >
 
-            </button>
+                <input
+                    type="hidden"
+                    name="target"
+                    value="{{ selected_info['column'] }}"
+                >
 
-        </form>
+                <input
+                    type="hidden"
+                    name="filename"
+                    value="{{ filename }}"
+                >
 
-    </div>
+                <input
+                    type="hidden"
+                    name="objective"
+                    value="{{ objective }}"
+                >
 
-    {% endif %}
+                <button type="submit" class="ta-btn">
+                    Confirm This Target
+                </button>
 
+            </form>
 
-    <!-- ================================================= -->
-    <!-- SUMMARY -->
-    <!-- ================================================= -->
+            {% else %}
 
-    <div class="card">
+            <p>
 
-        <h2>
-            Candidate Summary
-        </h2>
+                <strong>
+                    This target cannot be confirmed because
+                    TaskAware identified significant concerns.
+                </strong>
 
+            </p>
 
-        <table>
+            {% endif %}
 
-            <tr>
-
-                <th>
-                    Column
-                </th>
-
-                <th>
-                    Type
-                </th>
-
-                <th>
-                    Unique
-                </th>
-
-                <th>
-                    Missing
-                </th>
-
-                <th>
-                    Suitability
-                </th>
-
-                <th>
-                    Problem
-                </th>
-
-            </tr>
+        </section>
 
 
-            {% for candidate in candidates %}
+        {% else %}
 
-            <tr>
 
-                <td>
-                    {{ candidate["column"] }}
-                </td>
+        {% if candidates %}
 
-                <td>
-                    {{ candidate["type"] }}
-                </td>
+        {% set recommended = candidates[0] %}
 
-                <td>
-                    {{ candidate["unique_values"] }}
-                </td>
 
-                <td>
-                    {{ candidate["missing_values"] }}
-                </td>
+        <!-- ============================================= -->
+        <!-- RECOMMENDATION -->
+        <!-- ============================================= -->
 
-                <td>
-                    {{ candidate["suitability"] }}
-                </td>
+        <section class="ta-card ta-card--glow" aria-label="Recommended target">
 
-                <td>
-                    {{ candidate["possible_problem_type"] }}
-                </td>
+            <h2>
+                TaskAware's Recommended Target
+                <span class="ta-badge ta-badge--ok">✓ recommended</span>
+            </h2>
 
-            </tr>
+            <h3>
+                {{ recommended["column"] }}
+            </h3>
+
+            <div class="ta-grid">
+
+                <div>
+                    <div class="ta-label">Technical Suitability</div>
+                    <p>
+                        <strong>{{ recommended["suitability"] }}</strong>
+                        <br>
+                        <span class="ta-note">
+                            Type {{ recommended["type"] }},
+                            {{ recommended["unique_values"] }} unique values,
+                            {{ recommended["missing_values"] }} missing,
+                            expected {{ recommended["possible_problem_type"] }}.
+                        </span>
+                    </p>
+                </div>
+
+                <div>
+                    <div class="ta-label">Semantic Confidence</div>
+                    <p>
+                        <strong>{{ recommended["confidence"] }}</strong>
+                        <br>
+                        <span class="ta-note">
+                            Evidence score {{ recommended.get("score", "-") }}.
+                        </span>
+                    </p>
+                </div>
+
+                <div>
+                    <div class="ta-label">Objective Alignment</div>
+                    <p>
+                        {% if objective %}
+                        Scored against your stated objective;
+                        see supporting evidence below.
+                        {% else %}
+                        <span class="ta-note">
+                            No objective was provided, so this
+                            ranking uses dataset evidence only.
+                        </span>
+                        {% endif %}
+                    </p>
+                </div>
+
+            </div>
+
+
+            <h3>
+                Why it was recommended
+            </h3>
+
+
+            <ul>
+
+                {% for reason in recommended["positive_reasons"] %}
+
+                <li>
+                    {{ reason }}
+                </li>
+
+                {% endfor %}
+
+            </ul>
+
+
+            {% if recommended["negative_reasons"] %}
+
+            <h3>
+                Warnings
+            </h3>
+
+            <ul>
+
+                {% for reason in recommended["negative_reasons"] %}
+
+                <li>
+                    <span class="ta-badge ta-badge--warn">! warning</span>
+                    {{ reason }}
+                </li>
+
+                {% endfor %}
+
+            </ul>
+
+            {% endif %}
+
+
+            <form
+                action="/confirm-target"
+                method="POST"
+            >
+
+                <input
+                    type="hidden"
+                    name="target"
+                    value="{{ recommended['column'] }}"
+                >
+
+                <input
+                    type="hidden"
+                    name="filename"
+                    value="{{ filename }}"
+                >
+
+                <input
+                    type="hidden"
+                    name="objective"
+                    value="{{ objective }}"
+                >
+
+                <button type="submit" class="ta-btn">
+                    Confirm Recommended Target
+                </button>
+
+            </form>
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- ALTERNATIVE TARGETS (grouped by suitability)  -->
+        <!-- ============================================= -->
+
+        {% if candidates|length > 1 %}
+
+        <section class="ta-card" aria-label="Alternative targets">
+
+            <h2>
+                Alternative Targets
+            </h2>
+
+            <p>
+                Grouped by suitability. These targets have some
+                evidence supporting their use, but TaskAware did
+                not rank them as the primary recommendation.
+            </p>
+
+            {% for tier in ["Highly Suitable", "Suitable", "Possible", "Low Suitability", "Not Recommended"] %}
+            {% set _tier = candidates[1:] | selectattr("suitability", "equalto", tier) | rejectattr("is_id") | list %}
+
+            {% if _tier %}
+
+            <h3>
+                {{ tier }} ({{ _tier | length }})
+            </h3>
+
+            <div class="ta-table-wrap" role="region" aria-label="{{ tier }} alternatives" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        {{ tier }} alternative targets.
+                    </caption>
+
+                    <tr>
+                        <th scope="col">Column</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Unique</th>
+                        <th scope="col">Missing</th>
+                        <th scope="col">Confidence</th>
+                        <th scope="col">Problem</th>
+                        <th scope="col">Action</th>
+                    </tr>
+
+                    {% for candidate in _tier %}
+
+                    <tr>
+
+                        <td>{{ candidate["column"] }}</td>
+
+                        <td>{{ candidate["type"] }}</td>
+
+                        <td>{{ candidate["unique_values"] }}</td>
+
+                        <td>{{ candidate["missing_values"] }}</td>
+
+                        <td>{{ candidate["confidence"] }}</td>
+
+                        <td>{{ candidate["possible_problem_type"] }}</td>
+
+                        <td>
+
+                            <form
+                                action="/compare-target"
+                                method="POST"
+                            >
+
+                                <input
+                                    type="hidden"
+                                    name="filename"
+                                    value="{{ filename }}"
+                                >
+
+                                <input
+                                    type="hidden"
+                                    name="objective"
+                                    value="{{ objective }}"
+                                >
+
+                                <input
+                                    type="hidden"
+                                    name="target"
+                                    value="{{ candidate['column'] }}"
+                                >
+
+                                <button type="submit" class="ta-btn ta-btn--ghost">
+                                    Compare
+                                </button>
+
+                            </form>
+
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+            {% endif %}
 
             {% endfor %}
 
-        </table>
+        </section>
 
-    </div>
-
-
-    {% else %}
+        {% endif %}
 
 
-    <!-- ================================================= -->
-    <!-- NO TARGET -->
-    <!-- ================================================= -->
+        <!-- ============================================= -->
+        <!-- SUMMARY -->
+        <!-- ============================================= -->
 
-    <div class="card warning">
+        <section class="ta-card" aria-label="Candidate summary">
 
-        <h2>
-            No Suitable Prediction Target Found
-        </h2>
+            <h2>
+                Candidate Summary
+            </h2>
 
-        <p>
-            TaskAware could not identify a sufficiently
-            suitable target variable from the dataset.
-        </p>
+            <div class="ta-table-wrap" role="region" aria-label="All candidates" tabindex="0">
 
-        <p>
-            This does not mean that the dataset is unusable.
-            It may be appropriate for an unsupervised task
-            such as clustering.
-        </p>
+                <table>
 
-        <p>
-            TaskAware can discover natural groups in the
-            data without requiring a target label.
-        </p>
+                    <caption class="ta-note">
+                        Every evaluated column with its evidence.
+                    </caption>
 
-        <form
-            action="/detailed-eda"
-            method="POST"
-        >
+                    <tr>
 
-            <input
-                type="hidden"
-                name="filename"
-                value="{{ filename }}"
+                        <th scope="col">
+                            Column
+                        </th>
+
+                        <th scope="col">
+                            Type
+                        </th>
+
+                        <th scope="col">
+                            Unique
+                        </th>
+
+                        <th scope="col">
+                            Missing
+                        </th>
+
+                        <th scope="col">
+                            Suitability
+                        </th>
+
+                        <th scope="col">
+                            Problem
+                        </th>
+
+                    </tr>
+
+
+                    {% for candidate in candidates %}
+
+                    <tr>
+
+                        <td>
+                            {{ candidate["column"] }}
+                        </td>
+
+                        <td>
+                            {{ candidate["type"] }}
+                        </td>
+
+                        <td>
+                            {{ candidate["unique_values"] }}
+                        </td>
+
+                        <td>
+                            {{ candidate["missing_values"] }}
+                        </td>
+
+                        <td>
+                            {{ candidate["suitability"] }}
+                        </td>
+
+                        <td>
+                            {{ candidate["possible_problem_type"] }}
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+        </section>
+
+
+        {% else %}
+
+
+        <!-- ============================================= -->
+        <!-- NO TARGET -->
+        <!-- ============================================= -->
+
+        <section class="ta-card ta-card--warning" aria-label="No suitable target">
+
+            <h2>
+                No Suitable Prediction Target Found
+            </h2>
+
+            <p>
+                TaskAware could not identify a sufficiently
+                suitable target variable from the dataset.
+            </p>
+
+            <p>
+                This does not mean that the dataset is unusable.
+                It may be appropriate for an unsupervised task
+                such as clustering.
+            </p>
+
+            <p>
+                TaskAware can discover natural groups in the
+                data without requiring a target label.
+            </p>
+
+            <form
+                action="/detailed-eda"
+                method="POST"
             >
 
-            <input
-                type="hidden"
-                name="target"
-                value=""
-            >
+                <input
+                    type="hidden"
+                    name="filename"
+                    value="{{ filename }}"
+                >
 
-            <input
-                type="hidden"
-                name="problem_type"
-                value="Clustering"
-            >
+                <input
+                    type="hidden"
+                    name="target"
+                    value=""
+                >
 
-            <input
-                type="hidden"
-                name="objective"
-                value="{{ objective }}"
-            >
+                <input
+                    type="hidden"
+                    name="problem_type"
+                    value="Clustering"
+                >
 
-            <button type="submit">
+                <input
+                    type="hidden"
+                    name="objective"
+                    value="{{ objective }}"
+                >
 
-                Explore Clusters
+                <button type="submit" class="ta-btn">
+                    Explore Clusters
+                </button>
 
-            </button>
+            </form>
 
-        </form>
-
-    </div>
-
-
-    {% endif %}
-
-    {% endif %}
+        </section>
 
 
-    <br>
+        {% endif %}
 
-    <a href="/upload">
-        ← Upload Another Dataset
-    </a>
+        {% endif %}
+
+    </main>
+
+
+    <footer>
+
+        <br>
+
+        <a href="/upload">
+            ← Upload Another Dataset
+        </a>
+
+    </footer>
 
 </body>
 

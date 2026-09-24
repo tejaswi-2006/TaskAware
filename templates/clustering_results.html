@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-motion="full" data-view="rich">
 
 <head>
 
@@ -10,533 +10,512 @@
 
     <title>TaskAware | Cluster Analysis</title>
 
-    <style>
+    <link rel="stylesheet"
+          href="/static/css/taskaware.css">
 
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1150px;
-            margin: 40px auto;
-            padding: 20px;
-            line-height: 1.6;
-        }
-
-        h1 {
-            margin-bottom: 5px;
-        }
-
-        .card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-
-        .success {
-            border: 2px solid #333;
-        }
-
-        .warning {
-            border: 2px solid #e0a800;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 12px;
-            font-size: 14px;
-        }
-
-        th,
-        td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background: #f3f3f3;
-        }
-
-        .best-row {
-            background: #eef6ee;
-            font-weight: bold;
-        }
-
-        .meta {
-            color: #555;
-        }
-
-        .warning-text {
-            color: #9a6700;
-        }
-
-        .chart img {
-            max-width: 100%;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-        }
-
-        button {
-            padding: 11px 20px;
-            font-size: 15px;
-            cursor: pointer;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 12px;
-            background: #2e7d32;
-            color: #fff;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-    </style>
+    <script src="/static/js/taskaware.js" defer></script>
 
 </head>
 
 
-<body>
+<body class="ta-body">
 
-    <h1>
-        Cluster Analysis
-    </h1>
+    <a class="ta-skip-link" href="#ta-main">
+        Skip to main content
+    </a>
 
-    <p class="meta">
-        File: {{ filename }}
-        &nbsp;|&nbsp;
-        Problem Type: Clustering
-    </p>
+    {% include "_toggles.html" %}
 
-    {% if objective %}
-    <p class="meta">
-        Objective: {{ objective }}
-    </p>
-    {% endif %}
+    <header>
 
+        <h1>
+            Cluster Analysis
+        </h1>
 
-    {% if not result["success"] %}
-
-    <div class="card warning">
-
-        <h2>
-            Clustering Could Not Be Completed
-        </h2>
-
-        <p>
-            {{ result["message"] }}
+        <p class="ta-meta">
+            File: {{ filename }}
+            &nbsp;|&nbsp;
+            Problem Type: Clustering
         </p>
 
-    </div>
-
-    {% else %}
-
-
-    <!-- ================================================= -->
-    <!-- DISCLAIMER -->
-    <!-- ================================================= -->
-
-    <div class="card warning">
-
-        <h2>
-            Important Note
-        </h2>
-
-        <p class="warning-text">
-            Clusters are patterns discovered from the dataset.
-            They are <strong>not ground-truth labels</strong>.
-            The groups describe observed differences in the
-            data and should be interpreted as exploratory
-            findings, not as an official categorization.
+        {% if objective %}
+        <p class="ta-meta">
+            Objective: {{ objective }}
         </p>
+        {% endif %}
 
-    </div>
+        {% include "_timeline.html" %}
 
+    </header>
 
-    <!-- ================================================= -->
-    <!-- BEST CONFIGURATION -->
-    <!-- ================================================= -->
 
-    <div class="card success">
+    <main id="ta-main">
 
-        <h2>
-            Recommended Configuration
-            <span class="badge">
-                SELECTED
-            </span>
-        </h2>
+        {% if not result["success"] %}
 
-        <h3>
-            {{ result["n_clusters"] }} Clusters
-        </h3>
+        <section class="ta-card ta-card--danger" aria-label="Clustering failed">
 
-        <p>
-            <strong>
-                Silhouette Score:
-            </strong>
+            <h2>
+                Clustering Could Not Be Completed
+            </h2>
 
-            {{ result["best"]["silhouette"] }}
-        </p>
+            <p>
+                {{ result["message"] }}
+            </p>
 
-        <p>
-            <strong>
-                Davies-Bouldin Index:
-            </strong>
+        </section>
 
-            {{ result["best"]["davies_bouldin"] }}
-        </p>
+        {% else %}
 
-        <p>
-            <strong>
-                Calinski-Harabasz Index:
-            </strong>
 
-            {{ result["best"]["calinski_harabasz"] }}
-        </p>
+        <!-- ============================================= -->
+        <!-- DISCLAIMER -->
+        <!-- ============================================= -->
 
-        <p>
-            <strong>
-                Cluster Sizes:
-            </strong>
+        <section class="ta-card ta-card--warning" aria-label="Important note">
 
-            {{ result["best"]["cluster_sizes"] | join(", ") }}
-        </p>
+            <h2>
+                Important Note
+            </h2>
 
-        <p>
-            <strong>
-                Samples / Features:
-            </strong>
+            <p class="ta-warning-text">
+                Clusters are patterns discovered from the dataset.
+                They are <strong>not ground-truth labels</strong>.
+                The groups describe observed differences in the
+                data and should be interpreted as exploratory
+                findings, not as an official categorization.
+            </p>
 
-            {{ result["n_samples"] }} /
-            {{ result["n_features"] }}
-        </p>
+        </section>
 
-        <p>
-            <strong>
-                Stability:
-            </strong>
 
-            {% if result["stability"]["stable"] %}
-            Stable
-            {% else %}
-            <span class="warning-text">
-                Less stable across seeds
-            </span>
-            {% endif %}
+        <!-- ============================================= -->
+        <!-- BEST CONFIGURATION -->
+        <!-- ============================================= -->
 
-            ({{ result["stability"]["agreement"] }} agreement
-            across {{ result["stability"]["seeds_tested"] }}
-            random seeds)
-        </p>
+        <section class="ta-card ta-card--glow" aria-label="Recommended configuration">
 
-    </div>
+            <h2>
+                Recommended Configuration
+                <span class="ta-badge ta-badge--ok">
+                    ✓ SELECTED
+                </span>
+            </h2>
 
+            <div class="ta-grid">
 
-    <!-- ================================================= -->
-    <!-- K EVALUATION -->
-    <!-- ================================================= -->
+                <div>
+                    <div class="ta-label">Clusters</div>
+                    <div class="ta-stat">{{ result["n_clusters"] }}</div>
+                </div>
 
-    <div class="card">
+                <div>
+                    <div class="ta-label">Silhouette Score</div>
+                    <div class="ta-stat">{{ result["best"]["silhouette"] }}</div>
+                    <span class="ta-note">higher is better</span>
+                </div>
 
-        <h2>
-            K Selection
-        </h2>
+                <div>
+                    <div class="ta-label">Davies-Bouldin Index</div>
+                    <div class="ta-stat">{{ result["best"]["davies_bouldin"] }}</div>
+                    <span class="ta-note">lower is better</span>
+                </div>
 
-        <p>
-            Different K values were evaluated. The selected
-            configuration is highlighted.
-        </p>
+                <div>
+                    <div class="ta-label">Calinski-Harabasz</div>
+                    <div class="ta-stat">{{ result["best"]["calinski_harabasz"] }}</div>
+                    <span class="ta-note">higher is better</span>
+                </div>
 
-        <table>
+            </div>
 
-            <tr>
+            <p>
+                <strong>
+                    Cluster Sizes:
+                </strong>
 
-                <th>K</th>
-                <th>Silhouette</th>
-                <th>Davies-Bouldin</th>
-                <th>Calinski-Harabasz</th>
-                <th>Cluster Sizes</th>
+                {{ result["best"]["cluster_sizes"] | join(", ") }}
+            </p>
 
-            </tr>
+            <p>
+                <strong>
+                    Samples / Features:
+                </strong>
 
-            {% for eval in result["evaluations"] %}
-
-            <tr {% if eval["k"] == result["n_clusters"] %}class="best-row"{% endif %}>
-
-                <td>{{ eval["k"] }}</td>
-
-                <td>{{ eval["silhouette"] }}</td>
-
-                <td>{{ eval["davies_bouldin"] }}</td>
-
-                <td>{{ eval["calinski_harabasz"] }}</td>
-
-                <td>{{ eval["cluster_sizes"] | join(", ") }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- CHART -->
-    <!-- ================================================= -->
-
-    {% if result["chart_file"] %}
-
-    <div class="card">
-
-        <h2>
-            Cluster Visualization
-        </h2>
-
-        <div class="chart">
-
-            <img
-                src="/charts/{{ result['chart_file'] }}"
-                alt="Cluster visualization"
-            >
-
-        </div>
-
-    </div>
-
-    {% endif %}
-
-
-    <!-- ================================================= -->
-    <!-- CLUSTER PROFILES -->
-    <!-- ================================================= -->
-
-    <div class="card">
-
-        <h2>
-            Cluster Profiles
-        </h2>
-
-        <p>
-            Average characteristics for each cluster.
-            These describe the observed data; they are not
-            labels of a ground truth.
-        </p>
-
-        {% for profile in result["profiles"] %}
-
-        <h3>
-            Cluster {{ profile["cluster"] }}
-            <span class="meta">
-                ({{ profile["size"] }} samples,
-                {{ profile["size_percentage"] }}%)
-            </span>
-        </h3>
-
-        <table>
-
-            <tr>
-                <th>Feature</th>
-                <th>Type</th>
-                <th>Value</th>
-            </tr>
-
-            {% for feature in profile["features"] %}
-
-            <tr>
-
-                <td>{{ feature["column"] }}</td>
-
-                <td>{{ feature["type"] }}</td>
-
-                {% if feature["type"] == "numerical" %}
-
-                <td>
-                    Mean: {{ feature["mean"] }}
-                    (Median: {{ feature["median"] }})
-                </td>
-
+                {{ result["n_samples"] }} /
+                {{ result["n_features"] }}
+            </p>
+
+            <p>
+                <strong>
+                    Stability:
+                </strong>
+
+                {% if result["stability"]["stable"] %}
+                <span class="ta-badge ta-badge--ok">✓ Stable</span>
                 {% else %}
-
-                <td>
-                    {{ feature["dominant"] }}
-                    ({{ feature["dominant_ratio"] }})
-                </td>
-
+                <span class="ta-badge ta-badge--warn">! Less stable across seeds</span>
                 {% endif %}
 
-            </tr>
+                ({{ result["stability"]["agreement"] }} agreement
+                across {{ result["stability"]["seeds_tested"] }}
+                random seeds)
+            </p>
 
-            {% endfor %}
-
-        </table>
-
-        {% endfor %}
-
-    </div>
+        </section>
 
 
-    <!-- ================================================= -->
-    <!-- DISTINGUISHING FEATURES -->
-    <!-- ================================================= -->
+        <!-- ============================================= -->
+        <!-- K EVALUATION -->
+        <!-- ============================================= -->
 
-    {% if result["distinguishing_features"] %}
+        <section class="ta-card" aria-label="K selection">
 
-    <div class="card">
+            <h2>
+                K Selection
+            </h2>
 
-        <h2>
-            Features That Differ Most Between Clusters
-        </h2>
+            <p>
+                Different K values were evaluated. The selected
+                configuration is highlighted.
+            </p>
 
-        <p>
-            These features vary the most across the
-            identified clusters and therefore help explain
-            what distinguishes the groups.
-        </p>
+            <div class="ta-table-wrap" role="region" aria-label="K evaluation" tabindex="0">
 
-        <table>
+                <table>
 
-            <tr>
-                <th>Feature</th>
-                <th>Spread</th>
-                <th>Relative Spread</th>
-                <th>Cluster Means</th>
-            </tr>
+                    <caption class="ta-note">
+                        Quality metrics per candidate K.
+                    </caption>
 
-            {% for item in result["distinguishing_features"] %}
+                    <tr>
 
-            <tr>
+                        <th scope="col">K</th>
+                        <th scope="col">Silhouette</th>
+                        <th scope="col">Davies-Bouldin</th>
+                        <th scope="col">Calinski-Harabasz</th>
+                        <th scope="col">Cluster Sizes</th>
 
-                <td>{{ item["column"] }}</td>
+                    </tr>
 
-                <td>{{ item["spread"] }}</td>
+                    {% for eval in result["evaluations"] %}
 
-                <td>{{ item["relative_spread"] }}</td>
+                    <tr {% if eval["k"] == result["n_clusters"] %}class="best-row"{% endif %}>
 
-                <td>{{ item["cluster_values"] | join(", ") }}</td>
+                        <td>
+                            {{ eval["k"] }}
+                            {% if eval["k"] == result["n_clusters"] %}
+                            <span class="ta-badge ta-badge--ok">✓</span>
+                            {% endif %}
+                        </td>
 
-            </tr>
+                        <td>{{ eval["silhouette"] }}</td>
 
-            {% endfor %}
+                        <td>{{ eval["davies_bouldin"] }}</td>
 
-        </table>
+                        <td>{{ eval["calinski_harabasz"] }}</td>
 
-    </div>
+                        <td>{{ eval["cluster_sizes"] | join(", ") }}</td>
 
-    {% endif %}
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+        </section>
 
 
-    <!-- ================================================= -->
-    <!-- EXCLUDED COLUMNS -->
-    <!-- ================================================= -->
+        <!-- ============================================= -->
+        <!-- CHART (2D default, optional CSS-3D tilt)      -->
+        <!-- ============================================= -->
 
-    {% if result["id_columns"] or result["constant_columns"] %}
+        {% if result["chart_file"] %}
 
-    <div class="card">
+        <section class="ta-card" aria-label="Cluster visualization">
 
-        <h2>
-            Excluded Columns
-        </h2>
+            <h2>
+                Cluster Visualization
+            </h2>
 
-        <ul>
+            <div class="ta-chart-flex">
 
-            {% for column in result["id_columns"] %}
+                <button
+                    type="button"
+                    id="ta-tilt-toggle"
+                    class="ta-btn ta-btn--ghost"
+                    aria-pressed="false"
+                    aria-describedby="tilt-note"
+                >
+                    Toggle Optional 3D Tilt
+                </button>
 
-            <li>
-                {{ column }}
-                <span class="meta">
-                    (identifier)
+                <span class="ta-note" id="tilt-note">
+                    A CSS-only tilted view of the same 2D chart.
+                    No WebGL is used; the table below always
+                    carries the exact values.
                 </span>
-            </li>
 
-            {% endfor %}
+            </div>
 
-            {% for column in result["constant_columns"] %}
+            <div class="ta-chart-stage ta-chart-frame" id="ta-chart-stage">
 
-            <li>
-                {{ column }}
-                <span class="meta">
-                    (constant)
+                <img
+                    src="/charts/{{ result['chart_file'] }}"
+                    alt="2D scatter plot of clusters. Cluster sizes and profiles are listed in the tables below."
+                >
+
+            </div>
+
+        </section>
+
+        {% endif %}
+
+
+        <!-- ============================================= -->
+        <!-- CLUSTER PROFILES -->
+        <!-- ============================================= -->
+
+        <section class="ta-card" aria-label="Cluster profiles">
+
+            <h2>
+                Cluster Profiles
+            </h2>
+
+            <p>
+                Average characteristics for each cluster.
+                These describe the observed data; they are not
+                labels of a ground truth.
+            </p>
+
+            {% for profile in result["profiles"] %}
+
+            <h3>
+                Cluster {{ profile["cluster"] }}
+                <span class="ta-meta">
+                    ({{ profile["size"] }} samples,
+                    {{ profile["size_percentage"] }}%)
                 </span>
-            </li>
+            </h3>
+
+            <div class="ta-table-wrap" role="region" aria-label="Cluster {{ profile['cluster'] }} profile" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        Observed characteristics of cluster {{ profile["cluster"] }}.
+                    </caption>
+
+                    <tr>
+                        <th scope="col">Feature</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Value</th>
+                    </tr>
+
+                    {% for feature in profile["features"] %}
+
+                    <tr>
+
+                        <td>{{ feature["column"] }}</td>
+
+                        <td>{{ feature["type"] }}</td>
+
+                        {% if feature["type"] == "numerical" %}
+
+                        <td>
+                            Mean: {{ feature["mean"] }}
+                            (Median: {{ feature["median"] }})
+                        </td>
+
+                        {% else %}
+
+                        <td>
+                            {{ feature["dominant"] }}
+                            ({{ feature["dominant_ratio"] }})
+                        </td>
+
+                        {% endif %}
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
 
             {% endfor %}
 
-        </ul>
-
-    </div>
-
-    {% endif %}
+        </section>
 
 
-    <!-- ================================================= -->
-    <!-- NEXT STAGE -->
-    <!-- ================================================= -->
+        <!-- ============================================= -->
+        <!-- DISTINGUISHING FEATURES -->
+        <!-- ============================================= -->
 
-    <div class="card">
+        {% if result["distinguishing_features"] %}
 
-        <h2>
-            Cluster Analysis Complete
-        </h2>
+        <section class="ta-card" aria-label="Distinguishing features">
 
-        <p>
-            TaskAware can now provide a human-readable
-            interpretation of these clusters.
-        </p>
+            <h2>
+                Features That Differ Most Between Clusters
+            </h2>
 
-        <form
-            action="/explainability"
-            method="POST"
-        >
+            <p>
+                These features vary the most across the
+                identified clusters and therefore help explain
+                what distinguishes the groups.
+            </p>
 
-            <input
-                type="hidden"
-                name="filename"
-                value="{{ filename }}"
+            <div class="ta-table-wrap" role="region" aria-label="Distinguishing features" tabindex="0">
+
+                <table>
+
+                    <tr>
+                        <th scope="col">Feature</th>
+                        <th scope="col">Spread</th>
+                        <th scope="col">Relative Spread</th>
+                        <th scope="col">Cluster Means</th>
+                    </tr>
+
+                    {% for item in result["distinguishing_features"] %}
+
+                    <tr>
+
+                        <td>{{ item["column"] }}</td>
+
+                        <td>{{ item["spread"] }}</td>
+
+                        <td>{{ item["relative_spread"] }}</td>
+
+                        <td>{{ item["cluster_values"] | join(", ") }}</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+        </section>
+
+        {% endif %}
+
+
+        <!-- ============================================= -->
+        <!-- EXCLUDED COLUMNS -->
+        <!-- ============================================= -->
+
+        {% if result["id_columns"] or result["constant_columns"] %}
+
+        <section class="ta-card" aria-label="Excluded columns">
+
+            <h2>
+                Excluded Columns
+            </h2>
+
+            <ul>
+
+                {% for column in result["id_columns"] %}
+
+                <li>
+                    {{ column }}
+                    <span class="ta-badge ta-badge--warn">identifier</span>
+                </li>
+
+                {% endfor %}
+
+                {% for column in result["constant_columns"] %}
+
+                <li>
+                    {{ column }}
+                    <span class="ta-badge ta-badge--bad">constant</span>
+                </li>
+
+                {% endfor %}
+
+            </ul>
+
+        </section>
+
+        {% endif %}
+
+
+        <!-- ============================================= -->
+        <!-- NEXT STAGE -->
+        <!-- ============================================= -->
+
+        <section class="ta-card ta-card--glow" aria-label="Next stage">
+
+            <h2>
+                Cluster Analysis Complete
+            </h2>
+
+            <p>
+                TaskAware can now provide a human-readable
+                interpretation of these clusters.
+            </p>
+
+            <form
+                action="/explainability"
+                method="POST"
             >
 
-            <input
-                type="hidden"
-                name="target"
-                value=""
-            >
+                <input
+                    type="hidden"
+                    name="filename"
+                    value="{{ filename }}"
+                >
 
-            <input
-                type="hidden"
-                name="problem_type"
-                value="Clustering"
-            >
+                <input
+                    type="hidden"
+                    name="target"
+                    value=""
+                >
 
-            <input
-                type="hidden"
-                name="objective"
-                value="{{ objective }}"
-            >
+                <input
+                    type="hidden"
+                    name="problem_type"
+                    value="Clustering"
+                >
 
-            <input
-                type="hidden"
-                name="selected_model"
-                value=""
-            >
+                <input
+                    type="hidden"
+                    name="objective"
+                    value="{{ objective }}"
+                >
 
-            <button type="submit">
-                Explain Cluster Results
-            </button>
+                <input
+                    type="hidden"
+                    name="selected_model"
+                    value=""
+                >
 
-        </form>
+                <button type="submit" class="ta-btn">
+                    Explain Cluster Results
+                </button>
 
-    </div>
+            </form>
 
-    {% endif %}
+        </section>
+
+        {% endif %}
+
+    </main>
 
 
-    <br>
+    <footer>
 
-    <a href="/upload">
-        ← Upload Another Dataset
-    </a>
+        <br>
+
+        <a href="/upload">
+            ← Upload Another Dataset
+        </a>
+
+    </footer>
 
 </body>
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-motion="full" data-view="rich">
 
 <head>
 
@@ -10,339 +10,373 @@
 
     <title>TaskAware | Explainability</title>
 
-    <style>
+    <link rel="stylesheet"
+          href="/static/css/taskaware.css">
 
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1150px;
-            margin: 40px auto;
-            padding: 20px;
-            line-height: 1.6;
-        }
-
-        h1 {
-            margin-bottom: 5px;
-        }
-
-        .card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-
-        .success {
-            border: 2px solid #333;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 12px;
-            font-size: 14px;
-        }
-
-        th,
-        td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background: #f3f3f3;
-        }
-
-        .meta {
-            color: #555;
-        }
-
-        .chart img {
-            max-width: 100%;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-        }
-
-        button {
-            padding: 11px 20px;
-            font-size: 15px;
-            cursor: pointer;
-        }
-
-    </style>
+    <script src="/static/js/taskaware.js" defer></script>
 
 </head>
 
 
-<body>
+<body class="ta-body">
 
-    <h1>
-        Explainability
-    </h1>
-
-    <p class="meta">
-        File: {{ filename }}
-        &nbsp;|&nbsp;
-        Problem Type: {{ problem_type }}
-    </p>
-
-    {% if target_column %}
-    <p class="meta">
-        Target: {{ target_column }}
-    </p>
-    {% endif %}
-
-    {% if selected_model %}
-    <p class="meta">
-        Model: {{ selected_model }}
-    </p>
-    {% endif %}
-
-    {% if objective %}
-    <p class="meta">
-        Objective: {{ objective }}
-    </p>
-    {% endif %}
-
-
-    {% if is_clustering %}
-
-    <!-- ================================================= -->
-    <!-- CLUSTERING EXPLAINABILITY -->
-    <!-- ================================================= -->
-
-    <div class="card success">
-
-        <h2>
-            Cluster Interpretation
-        </h2>
-
-        <p>
-            The clustering stage already generated
-            interpretable profiles for each cluster.
-        </p>
-
-        <p>
-            Cluster profiles describe the average feature
-            values and dominant categories within each
-            group. They explain <strong>why</strong> the
-            groups differ in terms of the original
-            features.
-        </p>
-
-        <p>
-            SHAP is not applied to clustering because there
-            is no prediction target. Feature differences
-            between clusters provide the appropriate
-            unsupervised explanation.
-        </p>
-
-    </div>
-
-    {% else %}
-
-
-    <!-- ================================================= -->
-    <!-- SHAP RESULTS -->
-    <!-- ================================================= -->
-
-    {% if shap_result and shap_result["success"] %}
-
-    <div class="card success">
-
-        <h2>
-            SHAP Analysis
-        </h2>
-
-        <p>
-            SHAP values show how much each feature
-            contributes to the model's predictions.
-            Higher values mean a stronger contribution.
-        </p>
-
-    </div>
-
-
-    {% if shap_result["chart_file"] %}
-
-    <div class="card">
-
-        <h2>
-            Feature Contribution Chart
-        </h2>
-
-        <div class="chart">
-
-            <img
-                src="/charts/{{ shap_result['chart_file'] }}"
-                alt="SHAP summary plot"
-            >
-
-        </div>
-
-    </div>
-
-    {% endif %}
-
-
-    {% if shap_result["shap_summary"] %}
-
-    <div class="card">
-
-        <h2>
-            Top Contributing Features
-        </h2>
-
-        <table>
-
-            <tr>
-                <th>Rank</th>
-                <th>Feature</th>
-                <th>Mean |SHAP| Contribution</th>
-            </tr>
-
-            {% for item in shap_result["shap_summary"] %}
-
-            <tr>
-
-                <td>{{ loop.index }}</td>
-
-                <td>{{ item["feature"] }}</td>
-
-                <td>{{ item["mean_abs_shap"] }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-    </div>
-
-    {% endif %}
-
-
-    {% if shap_result["feature_importance"] %}
-
-    <div class="card">
-
-        <h2>
-            Model Feature Importance
-        </h2>
-
-        <table>
-
-            <tr>
-                <th>Rank</th>
-                <th>Feature</th>
-                <th>Importance</th>
-            </tr>
-
-            {% for item in shap_result["feature_importance"] %}
-
-            <tr>
-
-                <td>{{ loop.index }}</td>
-
-                <td>{{ item["feature"] }}</td>
-
-                <td>{{ item["importance"] }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-    </div>
-
-    {% endif %}
-
-
-    {% else %}
-
-    <div class="card">
-
-        <h2>
-            Explainability Not Available
-        </h2>
-
-        <p>
-            {{ shap_result["message"] if shap_result else "No explanation was produced." }}
-        </p>
-
-    </div>
-
-    {% endif %}
-
-    {% endif %}
-
-
-    <!-- ================================================= -->
-    <!-- NEXT STAGE -->
-    <!-- ================================================= -->
-
-    <div class="card">
-
-        <h2>
-            Explanation Ready
-        </h2>
-
-        <p>
-            TaskAware can now generate a human-readable
-            interpretation of the analysis using its AI
-            explanation layer.
-        </p>
-
-        <form
-            action="/ai-explanation"
-            method="POST"
-        >
-
-            <input
-                type="hidden"
-                name="filename"
-                value="{{ filename }}"
-            >
-
-            <input
-                type="hidden"
-                name="target"
-                value="{{ target_column or '' }}"
-            >
-
-            <input
-                type="hidden"
-                name="problem_type"
-                value="{{ problem_type }}"
-            >
-
-            <input
-                type="hidden"
-                name="objective"
-                value="{{ objective }}"
-            >
-
-            <input
-                type="hidden"
-                name="selected_model"
-                value="{{ selected_model or '' }}"
-            >
-
-            <button type="submit">
-                Generate AI Explanation
-            </button>
-
-        </form>
-
-    </div>
-
-
-    <br>
-
-    <a href="/upload">
-        ← Upload Another Dataset
+    <a class="ta-skip-link" href="#ta-main">
+        Skip to main content
     </a>
+
+    {% include "_toggles.html" %}
+
+    <header>
+
+        <h1>
+            Explainability
+        </h1>
+
+        <p class="ta-meta">
+            File: {{ filename }}
+            &nbsp;|&nbsp;
+            Problem Type: {{ problem_type }}
+        </p>
+
+        {% if target_column %}
+        <p class="ta-meta">
+            Target: {{ target_column }}
+        </p>
+        {% endif %}
+
+        {% if selected_model %}
+        <p class="ta-meta">
+            Model: {{ selected_model }}
+        </p>
+        {% endif %}
+
+        {% if objective %}
+        <p class="ta-meta">
+            Objective: {{ objective }}
+        </p>
+        {% endif %}
+
+        {% include "_timeline.html" %}
+
+    </header>
+
+
+    <main id="ta-main">
+
+        {% if is_clustering %}
+
+        <!-- ============================================= -->
+        <!-- CLUSTERING EXPLAINABILITY -->
+        <!-- ============================================= -->
+
+        <section class="ta-card ta-card--success" aria-label="Cluster interpretation">
+
+            <h2>
+                Cluster Interpretation
+            </h2>
+
+            <p>
+                The clustering stage already generated
+                interpretable profiles for each cluster.
+            </p>
+
+            <p>
+                Cluster profiles describe the average feature
+                values and dominant categories within each
+                group. They explain <strong>why</strong> the
+                groups differ in terms of the original
+                features.
+            </p>
+
+            <p>
+                <span class="ta-badge ta-badge--info">cluster profiles</span>
+                SHAP is not applied to clustering because there
+                is no prediction target. Feature differences
+                between clusters provide the appropriate
+                unsupervised explanation.
+            </p>
+
+        </section>
+
+        {% else %}
+
+
+        <!-- ============================================= -->
+        <!-- METHOD HONESTY HEADER -->
+        <!-- ============================================= -->
+
+        {% if shap_result and shap_result["success"] %}
+
+        {% set _method = shap_result.get("method") %}
+
+        <section class="ta-card ta-card--success" aria-label="Explanation method">
+
+            <h2>
+                {% if _method == "SHAP" %}
+                SHAP Analysis
+                <span class="ta-badge ta-badge--ok">✓ SHAP</span>
+                {% elif _method == "Model Coefficients" %}
+                Model Coefficient Analysis
+                <span class="ta-badge ta-badge--info">coefficients (not SHAP)</span>
+                {% elif _method == "Feature Importance" %}
+                Model-Based Feature Importance
+                <span class="ta-badge ta-badge--info">importance (not SHAP)</span>
+                {% elif _method == "Permutation Importance" %}
+                Permutation Importance Analysis
+                <span class="ta-badge ta-badge--info">permutation (not SHAP)</span>
+                {% else %}
+                Feature Contribution Analysis
+                <span class="ta-badge ta-badge--info">{{ _method or "unspecified method" }}</span>
+                {% endif %}
+            </h2>
+
+            {% if _method == "SHAP" %}
+            <p>
+                SHAP values show how much each feature
+                contributes to the model's predictions.
+                Higher values mean a stronger contribution.
+            </p>
+            {% else %}
+            <p>
+                {{ shap_result.get("message", "") }}
+            </p>
+            {% endif %}
+
+        </section>
+
+
+        {% if shap_result["chart_file"] %}
+
+        <section class="ta-card" aria-label="Feature contribution chart">
+
+            <h2>
+                Feature Contribution Chart
+            </h2>
+
+            <div class="ta-chart-frame">
+
+                <img
+                    src="/charts/{{ shap_result['chart_file'] }}"
+                    alt="Bar chart of feature contributions. Exact values are listed in the table below."
+                >
+
+            </div>
+
+            <p class="ta-note">
+                The chart visualises the same values as the
+                table below, which remains the exact reference.
+            </p>
+
+        </section>
+
+        {% endif %}
+
+
+        {% if shap_result["shap_summary"] %}
+
+        <section class="ta-card" aria-label="Top contributing features">
+
+            <h2>
+                Top Contributing Features
+            </h2>
+
+            <div class="ta-bars" role="img" aria-label="Bar visualisation of top feature contributions. Exact values follow in the table.">
+
+                {% set _max = shap_result["shap_summary"][0]["mean_abs_shap"] or 1 %}
+
+                {% for item in shap_result["shap_summary"][:8] %}
+
+                <div class="ta-bar-row">
+
+                    <span>{{ item["feature"] }}</span>
+
+                    <span class="ta-bar-track">
+                        <span
+                            class="ta-bar-fill"
+                            style="width: {{ (100 * item['mean_abs_shap'] / _max) | round(1) }}%"
+                        ></span>
+                    </span>
+
+                    <span>{{ item["mean_abs_shap"] }}</span>
+
+                </div>
+
+                {% endfor %}
+
+            </div>
+
+            <div class="ta-table-wrap" role="region" aria-label="Top features table" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        Exact contribution values.
+                    </caption>
+
+                    <tr>
+                        <th scope="col">Rank</th>
+                        <th scope="col">Feature</th>
+                        <th scope="col">Mean |SHAP| Contribution</th>
+                    </tr>
+
+                    {% for item in shap_result["shap_summary"] %}
+
+                    <tr>
+
+                        <td>{{ loop.index }}</td>
+
+                        <td>{{ item["feature"] }}</td>
+
+                        <td>{{ item["mean_abs_shap"] }}</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+        </section>
+
+        {% endif %}
+
+
+        {% if shap_result["feature_importance"] %}
+
+        <section class="ta-card" aria-label="Model feature importance">
+
+            <h2>
+                Model Feature Importance
+            </h2>
+
+            <div class="ta-table-wrap" role="region" aria-label="Importance table" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        Importance scores from the fitted model.
+                    </caption>
+
+                    <tr>
+                        <th scope="col">Rank</th>
+                        <th scope="col">Feature</th>
+                        <th scope="col">Importance</th>
+                    </tr>
+
+                    {% for item in shap_result["feature_importance"] %}
+
+                    <tr>
+
+                        <td>{{ loop.index }}</td>
+
+                        <td>{{ item["feature"] }}</td>
+
+                        <td>{{ item["importance"] }}</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+        </section>
+
+        {% endif %}
+
+
+        {% else %}
+
+        <section class="ta-card ta-card--warning" aria-label="Explainability unavailable">
+
+            <h2>
+                Explainability Not Available
+            </h2>
+
+            <p>
+                {{ shap_result["message"] if shap_result else "No explanation was produced." }}
+            </p>
+
+        </section>
+
+        {% endif %}
+
+        {% endif %}
+
+
+        <!-- ============================================= -->
+        <!-- NEXT STAGE -->
+        <!-- ============================================= -->
+
+        <section class="ta-card ta-card--glow" aria-label="Next stage">
+
+            <h2>
+                Explanation Ready
+            </h2>
+
+            <p>
+                TaskAware can now generate a human-readable
+                interpretation of the analysis using its AI
+                explanation layer.
+            </p>
+
+            <form
+                action="/ai-explanation"
+                method="POST"
+            >
+
+                <input
+                    type="hidden"
+                    name="filename"
+                    value="{{ filename }}"
+                >
+
+                <input
+                    type="hidden"
+                    name="target"
+                    value="{{ target_column or '' }}"
+                >
+
+                <input
+                    type="hidden"
+                    name="problem_type"
+                    value="{{ problem_type }}"
+                >
+
+                <input
+                    type="hidden"
+                    name="objective"
+                    value="{{ objective }}"
+                >
+
+                <input
+                    type="hidden"
+                    name="selected_model"
+                    value="{{ selected_model or '' }}"
+                >
+
+                <button type="submit" class="ta-btn">
+                    Generate AI Explanation
+                </button>
+
+            </form>
+
+        </section>
+
+    </main>
+
+
+    <footer>
+
+        <br>
+
+        <a href="/upload">
+            ← Upload Another Dataset
+        </a>
+
+    </footer>
 
 </body>
 

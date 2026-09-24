@@ -1,0 +1,66 @@
+{# Workflow progress timeline. Expects `workflow_stage` to be one of:
+   upload, schema, target, eda, preprocessing, modelling,
+   explainability, report.
+   Optional `workflow_alert` ("warning"/"failed") marks the current stage.
+   The Upload stage links to /upload; other stages are text with
+   icon + status words (status is never colour-only). #}
+{% if workflow_stage is not defined %}{% set workflow_stage = "" %}{% endif %}
+{% set _stages = [
+    ("upload", "Upload", "1", "/upload"),
+    ("schema", "Schema", "2", none),
+    ("target", "Target", "3", none),
+    ("eda", "EDA", "4", none),
+    ("preprocessing", "Preprocessing", "5", none),
+    ("modelling", "Modelling", "6", none),
+    ("explainability", "Explainability", "7", none),
+    ("report", "Report", "8", none),
+] %}
+{% set _order = ["upload", "schema", "target", "eda", "preprocessing", "modelling", "explainability", "report"] %}
+{% set _ns = namespace(current=-1) %}
+{% for _s in _order %}
+{% if _s == workflow_stage %}{% set _ns.current = loop.index0 %}{% endif %}
+{% endfor %}
+<nav aria-label="Analysis workflow progress">
+
+    <ol class="ta-timeline">
+
+        {% for key, label, num, href in _stages %}
+
+        {% set idx = loop.index0 %}
+        {% if idx < _ns.current %}
+        {% set state = "done" %}
+        {% set icon = "✓" %}
+        {% set words = "completed" %}
+        {% elif idx == _ns.current %}
+        {% set state = workflow_alert if workflow_alert in ["warning", "failed"] else "active" %}
+        {% set icon = "!" if state == "warning" else ("✕" if state == "failed" else "▶") %}
+        {% set words = "needs attention" if state == "warning" else ("failed" if state == "failed" else "current") %}
+        {% else %}
+        {% set state = "todo" %}
+        {% set icon = num %}
+        {% set words = "pending" %}
+        {% endif %}
+
+        <li
+            data-state="{{ state }}"
+            {% if idx == _ns.current %}aria-current="step"{% endif %}
+        >
+
+            <span class="ta-stage-icon" aria-hidden="true">{{ icon }}</span>
+
+            <span>
+                {% if href and idx != _ns.current %}
+                <a href="{{ href }}">{{ label }}</a>
+                {% else %}
+                {{ label }}
+                {% endif %}
+                <span class="ta-kbd-hint">({{ words }})</span>
+            </span>
+
+        </li>
+
+        {% endfor %}
+
+    </ol>
+
+</nav>

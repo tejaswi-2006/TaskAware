@@ -828,5 +828,214 @@ class TestReportConsistency(unittest.TestCase):
         )
 
 
+class TestAnalyticsUI(unittest.TestCase):
+
+    TEMPLATES_DIR = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "templates",
+    )
+
+    FLOW_TEMPLATES = [
+        "dataset_overview.html",
+        "objective_analysis.html",
+        "target_comparison.html",
+        "target_confirmed.html",
+        "detailed_eda.html",
+        "preprocessing.html",
+        "model_results.html",
+        "clustering_results.html",
+        "explainability.html",
+        "ai_explanation.html",
+        "report.html",
+        "upload.html",
+    ]
+
+    def _read(self, name):
+        with open(
+            os.path.join(self.TEMPLATES_DIR, name),
+            encoding="utf-8",
+        ) as handle:
+            return handle.read()
+
+    def test_shared_assets_exist(self):
+        base = os.path.dirname(os.path.dirname(__file__))
+        self.assertTrue(
+            os.path.exists(
+                os.path.join(base, "static", "css", "taskaware.css")
+            )
+        )
+        self.assertTrue(
+            os.path.exists(
+                os.path.join(base, "static", "js", "taskaware.js")
+            )
+        )
+
+    def test_css_accessibility_rules(self):
+        base = os.path.dirname(os.path.dirname(__file__))
+
+        with open(
+            os.path.join(base, "static", "css", "taskaware.css"),
+            encoding="utf-8",
+        ) as handle:
+            css = handle.read()
+
+        self.assertIn("prefers-reduced-motion", css)
+        self.assertIn('data-view="simple"', css)
+        self.assertIn("focus-visible", css)
+        self.assertIn("ta-skip-link", css)
+        self.assertIn("@media", css)
+
+    def test_js_toggles_without_webgl(self):
+        base = os.path.dirname(os.path.dirname(__file__))
+
+        with open(
+            os.path.join(base, "static", "js", "taskaware.js"),
+            encoding="utf-8",
+        ) as handle:
+            js = handle.read().lower()
+
+        self.assertIn("ta-motion-toggle", js)
+        self.assertIn("ta-simple-toggle", js)
+        self.assertNotIn("three", js)
+        self.assertNotIn("getcontext", js)
+        self.assertNotIn("webglrenderingcontext", js)
+        self.assertNotIn("<canvas", js)
+
+    def test_no_webgl_dependency_in_templates(self):
+        for name in os.listdir(self.TEMPLATES_DIR):
+            if not name.endswith(".html"):
+                continue
+
+            with open(
+                os.path.join(self.TEMPLATES_DIR, name),
+                encoding="utf-8",
+            ) as handle:
+                html = handle.read().lower()
+
+            self.assertNotIn("three.js", html, name)
+            self.assertNotIn("<canvas", html, name)
+
+    def test_flow_templates_share_chrome(self):
+        for name in self.FLOW_TEMPLATES:
+            html = self._read(name)
+            self.assertIn("taskaware.css", name and html, name)
+            self.assertIn("ta-skip-link", html, name)
+            self.assertIn("_toggles.html", html, name)
+
+    def test_timeline_renders_states(self):
+        from app import app as flask_app
+
+        with flask_app.test_request_context():
+            from flask import render_template
+
+            html = render_template(
+                "_timeline.html",
+                workflow_stage="target",
+            )
+
+        for stage in ["Upload", "Schema", "Target", "EDA",
+                      "Preprocessing", "Modelling",
+                      "Explainability", "Report"]:
+            self.assertIn(stage, html)
+
+        self.assertIn('aria-current="step"', html)
+        self.assertIn("(completed)", html)
+        self.assertIn("(current)", html)
+        self.assertIn("(pending)", html)
+
+    def test_report_method_branches(self):
+        html = self._read("report.html")
+        self.assertIn("not SHAP", html)
+        self.assertIn("_method", html)
+        self.assertIn("Group Validation", html)
+        self.assertIn("Feature Accounting", html)
+        self.assertIn("Reproducibility", html)
+
+    def test_model_results_shows_per_class(self):
+        html = self._read("model_results.html")
+        self.assertIn("Per-Class Metrics", html)
+        self.assertIn("imbalanc", html.lower())
+        self.assertIn("Primary selection metric", html)
+        self.assertIn("Train (s)", html)
+
+    def test_overview_group_confirmation(self):
+        html = self._read("dataset_overview.html")
+        self.assertIn("/confirm-groups", html)
+        self.assertIn("Confirmation Needed", html)
+        self.assertIn("Continue Without Group Splitting", html)
+
+    def test_per_class_metrics_backend(self):
+        from modules.model_evaluator import (
+            classification_metrics,
+        )
+
+        y_true = pd.Series([0] * 90 + [1] * 10)
+        y_pred = pd.Series([0] * 85 + [1] * 5 + [0] * 8 + [1] * 2)
+        metrics = classification_metrics(
+            y_true, y_pred, classes=[0, 1]
+        )
+
+        self.assertEqual(len(metrics["per_class"]), 2)
+        self.assertIn("macro_f1", metrics)
+        self.assertIn("weighted_f1", metrics)
+        self.assertIn("balanced_accuracy", metrics)
+        self.assertIsNotNone(metrics["imbalance_warning"])
+
+    def test_decision_group_keys(self):
+        from modules.decision_engine import decide_route
+
+        df = pd.DataFrame({
+            "x": np.random.normal(0, 1, 60),
+            "y": [0, 1] * 30,
+        })
+        decision = decide_route(df, objective="Predict y")
+
+        for key in ("group_confirmation_required",
+                    "group_confirmation_status",
+                    "confirmed_group_column",
+                    "group_validation_strategy",
+                    "group_validation_reason"):
+            self.assertIn(key, decision)
+
+    def test_confirm_groups_route(self):
+        from app import app as flask_app
+
+        path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "uploads",
+            "ui_confirm_check.csv",
+        )
+
+        pd.DataFrame({
+            "post_id": [f"P{i % 12:03d}" for i in range(120)],
+            "x": list(range(120)),
+            "y": [0, 1] * 60,
+        }).to_csv(path, index=False)
+
+        try:
+            client = flask_app.test_client()
+
+            response = client.post(
+                "/confirm-groups",
+                data={"filename": "ui_confirm_check.csv"},
+            )
+            body = response.get_data(as_text=True)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("Confirmation Needed", body)
+            self.assertNotIn("Traceback", body)
+
+            response = client.post(
+                "/confirm-groups",
+                data={"filename": "ui_confirm_check.csv",
+                      "groups": "post_id"},
+            )
+            body = response.get_data(as_text=True)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("post_id", body)
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+
+
 if __name__ == "__main__":
     unittest.main()

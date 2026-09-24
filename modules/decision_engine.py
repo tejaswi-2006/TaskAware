@@ -39,6 +39,11 @@ def decide_route(
           "target_role": str | None,
           "messages": [...],
           "needs_confirmation": bool,
+          "group_confirmation_required": bool,
+          "group_confirmation_status": str,
+          "confirmed_group_column": None,
+          "group_validation_strategy": str | None,
+          "group_validation_reason": str | None,
         }
     """
 
@@ -49,6 +54,20 @@ def decide_route(
         )
 
     messages = []
+
+    strategy = schema.get("validation_strategy", {})
+
+    group_state = {
+        "group_confirmation_required": strategy.get(
+            "group_confirmation_required", False
+        ),
+        "group_confirmation_status": strategy.get(
+            "group_confirmation_status", "not_required"
+        ),
+        "confirmed_group_column": None,
+        "group_validation_strategy": strategy.get("strategy"),
+        "group_validation_reason": strategy.get("reason"),
+    }
 
     # ------------------------------------------------
     # UNSUPPORTED-ONLY DATA
@@ -83,6 +102,7 @@ def decide_route(
                 "types."
             ],
             "needs_confirmation": True,
+            **group_state,
         }
 
     # ------------------------------------------------
@@ -120,6 +140,7 @@ def decide_route(
                     f"{target_role} column."
                 ],
                 "needs_confirmation": True,
+                **group_state,
             }
 
         # Text target -> warn but allow with clear limitation
@@ -141,6 +162,7 @@ def decide_route(
                     "column instead."
                 ],
                 "needs_confirmation": True,
+                **group_state,
             }
 
         # Datetime target
@@ -159,6 +181,7 @@ def decide_route(
                     "instead."
                 ],
                 "needs_confirmation": True,
+                **group_state,
             }
 
         # Valid target -> determine problem type
@@ -175,6 +198,7 @@ def decide_route(
             "target_role": target_role,
             "messages": [],
             "needs_confirmation": False,
+            **group_state,
         }
 
     # ------------------------------------------------
@@ -210,6 +234,7 @@ def decide_route(
                 "natural groups in the data."
             ],
             "needs_confirmation": True,
+            **group_state,
         }
 
     recommended = usable[0]
@@ -227,6 +252,7 @@ def decide_route(
             "Please confirm before proceeding."
         ],
         "needs_confirmation": True,
+        **group_state,
     }
 
 

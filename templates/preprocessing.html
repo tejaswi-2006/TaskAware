@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-motion="full" data-view="rich">
 
 <head>
 
@@ -10,649 +10,787 @@
 
     <title>TaskAware | Data Preprocessing</title>
 
-    <style>
+    <link rel="stylesheet"
+          href="/static/css/taskaware.css">
 
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1150px;
-            margin: 40px auto;
-            padding: 20px;
-            line-height: 1.6;
-        }
-
-        h1 {
-            margin-bottom: 5px;
-        }
-
-        .card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-
-        .success {
-            border: 2px solid #333;
-        }
-
-        .warning {
-            border: 2px solid #e0a800;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 12px;
-            font-size: 14px;
-        }
-
-        th,
-        td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background: #f3f3f3;
-        }
-
-        .meta {
-            color: #555;
-        }
-
-        .warning-text {
-            color: #9a6700;
-        }
-
-        button {
-            padding: 11px 20px;
-            font-size: 15px;
-            cursor: pointer;
-        }
-
-        .row {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-
-        .col {
-            flex: 1;
-            min-width: 300px;
-        }
-
-        ul.steps {
-            padding-left: 20px;
-        }
-
-        ul.steps li {
-            margin: 6px 0;
-        }
-
-    </style>
+    <script src="/static/js/taskaware.js" defer></script>
 
 </head>
 
 
-<body>
+<body class="ta-body">
 
-    <h1>
-        Data Preprocessing
-    </h1>
+    <a class="ta-skip-link" href="#ta-main">
+        Skip to main content
+    </a>
 
-    <p class="meta">
-        File: {{ filename }}
-        &nbsp;|&nbsp;
-        Problem Type: {{ problem_type }}
-    </p>
+    {% include "_toggles.html" %}
 
-    {% if target_column %}
-    <p class="meta">
-        Target: {{ target_column }}
-    </p>
-    {% endif %}
+    <header>
 
-    {% if objective %}
-    <p class="meta">
-        Objective: {{ objective }}
-    </p>
-    {% endif %}
+        <h1>
+            Data Preprocessing
+        </h1>
 
-
-    <!-- ================================================= -->
-    <!-- PREPROCESSING STEPS -->
-    <!-- ================================================= -->
-
-    <div class="card success">
-
-        <h2>
-            Preprocessing Plan
-        </h2>
-
-        <p>
-            TaskAware will apply the following steps to
-            prepare the dataset for
-            <strong>{{ problem_type }}</strong>:
+        <p class="ta-meta">
+            File: {{ filename }}
+            &nbsp;|&nbsp;
+            Problem Type: {{ problem_type }}
         </p>
 
-        <ul class="steps">
-
-            {% for step in prep["steps"] %}
-
-            <li>
-                {{ step }}
-            </li>
-
-            {% endfor %}
-
-        </ul>
-
-        <p class="meta">
-            Dataset rows: {{ prep["n_rows"] }}
+        {% if target_column %}
+        <p class="ta-meta">
+            Target: {{ target_column }}
         </p>
+        {% endif %}
 
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- LEAKAGE SAFETY -->
-    <!-- ================================================= -->
-
-    <div class="card">
-
-        <h2>
-            Leakage-Safe Preprocessing
-        </h2>
-
-        <p>
-            All preprocessing is applied inside a
-            scikit-learn
-            <strong>Pipeline + ColumnTransformer</strong>.
+        {% if objective %}
+        <p class="ta-meta">
+            Objective: {{ objective }}
         </p>
+        {% endif %}
 
-        <p>
-            The transformations
-            (imputation, encoding, scaling) are
-            <strong>
-                fitted only on the training fold
-            </strong>.
-            The test fold is transformed using the
-            already-fitted transformer.
-        </p>
+        {% include "_timeline.html" %}
 
-        <p>
-            TaskAware never fits preprocessing on the
-            full dataset before splitting, because that
-            would leak information from the test set into
-            the training data.
-        </p>
-
-    </div>
+    </header>
 
 
-    <!-- ================================================= -->
-    <!-- MISSING VALUES -->
-    <!-- ================================================= -->
+    <main id="ta-main">
 
-    <div class="card">
+        <!-- ============================================= -->
+        <!-- VISUAL PIPELINE -->
+        <!-- ============================================= -->
 
-        <h2>
-            Missing Value Handling
-        </h2>
+        <section class="ta-card ta-card--glow" aria-label="Preprocessing pipeline overview">
 
-        {% if prep["has_missing"] %}
+            <h2>
+                Pipeline Overview
+            </h2>
 
-        <p>
-            The following columns contain missing values
-            and will be imputed during preprocessing:
-        </p>
+            <p class="ta-note">
+                Raw columns flow through each stage to become
+                model features. Excluded columns never reach the
+                model.
+            </p>
 
-        <table>
+            <ol class="ta-timeline" aria-label="Preprocessing stages">
 
-            <tr>
-                <th>Column</th>
-                <th>Missing Count</th>
-                <th>Missing %</th>
-                <th>Strategy</th>
-            </tr>
+                {% for stage in ["Raw columns", "Remove identifiers", "Handle missing values", "Encode categories", "Process Boolean values", "Process text", "Extract date features", "Generate model features"] %}
 
-            {% for item in prep["missing_summary"] %}
+                <li data-state="done">
 
-            {% if item["missing_count"] > 0 %}
+                    <span class="ta-stage-icon" aria-hidden="true">✓</span>
 
-            <tr>
+                    <span>{{ stage }}</span>
 
-                <td>{{ item["column"] }}</td>
+                </li>
 
-                <td>{{ item["missing_count"] }}</td>
+                {% endfor %}
 
-                <td>{{ item["missing_ratio"] | round(3) }}</td>
+            </ol>
 
-                <td>{{ item["strategy"] }}</td>
+        </section>
 
-            </tr>
+
+        <!-- ============================================= -->
+        <!-- PER-COLUMN TRANSFORMATIONS -->
+        <!-- ============================================= -->
+
+        {% if prep.get("schema") %}
+
+        <section class="ta-card" aria-label="Per-column transformations">
+
+            <h2>
+                Column Transformations
+            </h2>
+
+            <p class="ta-note">
+                Input role, planned transformation, output effect
+                and warnings for every column.
+            </p>
+
+            <div class="ta-table-wrap" role="region" aria-label="Column transformations" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        How each column is transformed.
+                    </caption>
+
+                    <tr>
+                        <th scope="col">Column</th>
+                        <th scope="col">Input Role</th>
+                        <th scope="col">Transformation</th>
+                        <th scope="col">Output Effect</th>
+                        <th scope="col">Warning</th>
+                    </tr>
+
+                    {% for record in prep["schema"]["columns"] %}
+                    {% set _role = record.get("role") %}
+
+                    <tr>
+
+                        <td>{{ record.get("column") }}</td>
+
+                        <td>
+                            <span class="ta-badge ta-badge--role">{{ _role }}</span>
+                        </td>
+
+                        <td>{{ record.get("recommended_transformation", "-") }}</td>
+
+                        <td>
+                            {% if _role == "numeric" %}
+                            One scaled column.
+                            {% elif _role == "categorical" %}
+                            One column per category.
+                            {% elif _role == "boolean" %}
+                            One binary column.
+                            {% elif _role == "text" %}
+                            Up to 5000 term columns.
+                            {% elif _role == "datetime" %}
+                            Year, month, day and related components.
+                            {% else %}
+                            Excluded from model features.
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if record.get("warnings") %}
+                            <span class="ta-badge ta-badge--warn">! warning</span>
+                            {{ record.get("warnings") | join("; ") }}
+                            {% elif record.get("cardinality_warning") %}
+                            <span class="ta-badge ta-badge--warn">! warning</span>
+                            {{ record.get("cardinality_warning") }}
+                            {% else %}
+                            <span class="ta-note">—</span>
+                            {% endif %}
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+        </section>
+
+        {% endif %}
+
+
+        {% if confirmed_groups %}
+
+        <section class="ta-card" aria-label="Confirmed group columns">
+
+            <h2>
+                Confirmed Group Columns
+            </h2>
+
+            <p>
+                <span class="ta-badge ta-badge--ok">✓ confirmed by you</span>
+                {{ confirmed_groups | join(", ") }}
+            </p>
+
+            <p class="ta-note">
+                Confirmation is recorded as your explicit decision.
+                Automatic group-aware splitting uses only
+                high-confidence entity groups; confirmed
+                low-confidence candidates are shown for review.
+            </p>
+
+        </section>
+
+        {% endif %}
+
+
+        <!-- ============================================= -->
+        <!-- PREPROCESSING STEPS -->
+        <!-- ============================================= -->
+
+        <section class="ta-card ta-card--success" aria-label="Preprocessing plan">
+
+            <h2>
+                Preprocessing Plan
+            </h2>
+
+            <p>
+                TaskAware will apply the following steps to
+                prepare the dataset for
+                <strong>{{ problem_type }}</strong>:
+            </p>
+
+            <ul>
+
+                {% for step in prep["steps"] %}
+
+                <li>
+                    {{ step }}
+                </li>
+
+                {% endfor %}
+
+            </ul>
+
+            <p class="ta-meta">
+                Dataset rows: {{ prep["n_rows"] }}
+            </p>
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- LEAKAGE SAFETY -->
+        <!-- ============================================= -->
+
+        <section class="ta-card" aria-label="Leakage safety">
+
+            <h2>
+                Leakage-Safe Preprocessing
+            </h2>
+
+            <p>
+                All preprocessing is applied inside a
+                scikit-learn
+                <strong>Pipeline + ColumnTransformer</strong>.
+            </p>
+
+            <p>
+                The transformations
+                (imputation, encoding, scaling) are
+                <strong>
+                    fitted only on the training fold
+                </strong>.
+                The test fold is transformed using the
+                already-fitted transformer.
+            </p>
+
+            <p>
+                TaskAware never fits preprocessing on the
+                full dataset before splitting, because that
+                would leak information from the test set into
+                the training data.
+            </p>
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- MISSING VALUES -->
+        <!-- ============================================= -->
+
+        <section class="ta-card" aria-label="Missing value handling">
+
+            <h2>
+                Missing Value Handling
+            </h2>
+
+            {% if prep["has_missing"] %}
+
+            <p>
+                The following columns contain missing values
+                and will be imputed during preprocessing:
+            </p>
+
+            <div class="ta-table-wrap" role="region" aria-label="Missing values" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        Imputation strategy per column.
+                    </caption>
+
+                    <tr>
+                        <th scope="col">Column</th>
+                        <th scope="col">Missing Count</th>
+                        <th scope="col">Missing %</th>
+                        <th scope="col">Strategy</th>
+                    </tr>
+
+                    {% for item in prep["missing_summary"] %}
+
+                    {% if item["missing_count"] > 0 %}
+
+                    <tr>
+
+                        <td>{{ item["column"] }}</td>
+
+                        <td>{{ item["missing_count"] }}</td>
+
+                        <td>{{ item["missing_ratio"] | round(3) }}</td>
+
+                        <td>{{ item["strategy"] }}</td>
+
+                    </tr>
+
+                    {% endif %}
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+            {% else %}
+
+            <p>
+                <span class="ta-badge ta-badge--ok">✓ no missing values</span>
+                No missing values were detected in the
+                feature columns.
+            </p>
 
             {% endif %}
 
-            {% endfor %}
+        </section>
 
-        </table>
 
-        {% else %}
+        <!-- ============================================= -->
+        <!-- TRANSFORMATION PREVIEW -->
+        <!-- ============================================= -->
 
-        <p>
-            No missing values were detected in the
-            feature columns.
-        </p>
+        <section class="ta-card" aria-label="Transformation preview">
+
+            <h2>
+                Transformation Preview
+            </h2>
+
+            <p class="ta-note">
+                Note: this preview fits the pipeline on the
+                full dataset only to demonstrate the output
+                shape. During real training the pipeline is
+                fitted on the training fold only.
+            </p>
+
+            <div class="ta-grid">
+
+                <div>
+                    <div class="ta-label">Rows</div>
+                    <div class="ta-stat">{{ prep["preview"]["rows"] }}</div>
+                </div>
+
+                <div>
+                    <div class="ta-label">Features Before Encoding</div>
+                    <div class="ta-stat">{{ prep["preview"]["features_before"] }}</div>
+                </div>
+
+                <div>
+                    <div class="ta-label">Features After Encoding</div>
+                    <div class="ta-stat">{{ prep["preview"]["features_after"] }}</div>
+                </div>
+
+            </div>
+
+            {% if prep["preview"]["feature_names"] %}
+
+            <details>
+
+                <summary>
+                    Encoded Feature Names
+                    ({{ prep["preview"]["feature_names"] | length }})
+                </summary>
+
+                <p class="ta-note">
+                    {{ prep["preview"]["feature_names"] | join(", ") }}
+                </p>
+
+            </details>
+
+            {% endif %}
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- FEATURE SELECTION -->
+        <!-- ============================================= -->
+
+        <section class="ta-card" aria-label="Feature selection report">
+
+            <h2>
+                Feature Selection Report
+            </h2>
+
+            <p>
+                <strong>
+                    Number of usable features:
+                </strong>
+
+                {{ selection["feature_count"] }}
+            </p>
+
+            {% if prep.get("feature_accounting") %}
+            {% set fa = prep["feature_accounting"] %}
+
+            <h3>
+                Feature Accounting
+            </h3>
+
+            <div class="ta-table-wrap" role="region" aria-label="Feature accounting" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        Consistent counts used by preprocessing,
+                        training and reports.
+                    </caption>
+
+                    <tr>
+                        <th scope="col">Stage</th>
+                        <th scope="col">Count / Detail</th>
+                    </tr>
+
+                    <tr>
+                        <td>Raw feature columns</td>
+                        <td>{{ fa["raw_feature_columns"] }}</td>
+                    </tr>
+
+                    <tr>
+                        <td>Identifier columns removed</td>
+                        <td>{{ fa["identifier_columns_removed"] | length }}
+                            {% if fa["identifier_columns_removed"] %}
+                            ({{ fa["identifier_columns_removed"] | join(", ") }})
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>Unsupported columns excluded</td>
+                        <td>{{ fa["unsupported_columns_excluded"] | length }}
+                            {% if fa["unsupported_columns_excluded"] %}
+                            ({{ fa["unsupported_columns_excluded"] | join(", ") }})
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>Raw usable feature columns</td>
+                        <td>{{ fa["raw_usable_count"] }}</td>
+                    </tr>
+
+                    <tr>
+                        <td>Generated transformed features</td>
+                        <td>{{ fa["generated_transformed_features"] }}</td>
+                    </tr>
+
+                    <tr>
+                        <td>Feature selection applied</td>
+                        <td>
+                            {% if fa["feature_selection_applied"] %}
+                            Yes
+                            {% else %}
+                            No — {{ fa["selection_note"] }}
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>Features removed by selection</td>
+                        <td>{{ fa["features_removed_by_selection"] }}</td>
+                    </tr>
+
+                    <tr>
+                        <td>Final model features</td>
+                        <td>{{ fa["final_model_features"] }}</td>
+                    </tr>
+
+                </table>
+
+            </div>
+
+            {% endif %}
+
+            {% if selection["high_correlation"] %}
+
+            <h3>
+                Highly Correlated Feature Pairs
+            </h3>
+
+            <p class="ta-warning-text">
+                These pairs may carry redundant information.
+                TaskAware reports them but does not automatically
+                remove features.
+            </p>
+
+            <div class="ta-table-wrap" role="region" aria-label="Correlated pairs" tabindex="0">
+
+                <table>
+
+                    <tr>
+                        <th scope="col">Feature A</th>
+                        <th scope="col">Feature B</th>
+                        <th scope="col">Correlation</th>
+                        <th scope="col">Level</th>
+                    </tr>
+
+                    {% for item in selection["high_correlation"] %}
+
+                    <tr>
+
+                        <td>{{ item["feature_a"] }}</td>
+
+                        <td>{{ item["feature_b"] }}</td>
+
+                        <td>{{ item["correlation"] }}</td>
+
+                        <td>{{ item["redundancy_level"] }}</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+            {% endif %}
+
+            {% if selection["low_variance"] %}
+
+            <h3>
+                Low Information Features
+            </h3>
+
+            <p class="ta-warning-text">
+                These features have very little variation and
+                may add limited predictive value.
+            </p>
+
+            <div class="ta-table-wrap" role="region" aria-label="Low variance features" tabindex="0">
+
+                <table>
+
+                    <tr>
+                        <th scope="col">Column</th>
+                        <th scope="col">Standard Deviation</th>
+                        <th scope="col">Note</th>
+                    </tr>
+
+                    {% for item in selection["low_variance"] %}
+
+                    <tr>
+
+                        <td>{{ item["column"] }}</td>
+
+                        <td>{{ item["std"] if item["std"] is not none else "-" }}</td>
+
+                        <td>{{ item["note"] }}</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+            {% endif %}
+
+            {% if selection["leakage_candidates"] %}
+
+            <h3>
+                Potential Leakage Candidates
+            </h3>
+
+            <p class="ta-warning-text">
+                The following features correlate strongly with
+                the target. Review whether they would be known
+                before the outcome occurs.
+            </p>
+
+            <div class="ta-table-wrap" role="region" aria-label="Leakage candidates" tabindex="0">
+
+                <table>
+
+                    <tr>
+                        <th scope="col">Feature</th>
+                        <th scope="col">Correlation with Target</th>
+                        <th scope="col">Warning</th>
+                    </tr>
+
+                    {% for item in selection["leakage_candidates"] %}
+
+                    <tr>
+
+                        <td>{{ item["column"] }}</td>
+
+                        <td>{{ item["correlation_with_target"] }}</td>
+
+                        <td>{{ item["warning"] }}</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+            {% endif %}
+
+            {% if selection.get("selection_error") %}
+
+            <p class="ta-warning-text">
+                Advisory selection checks could not complete:
+                {{ selection["selection_error"] }}
+            </p>
+
+            {% endif %}
+
+            {% if not selection["high_correlation"]
+                  and not selection["low_variance"]
+                  and not selection["leakage_candidates"] %}
+
+            <p>
+                <span class="ta-badge ta-badge--ok">✓ no advisories</span>
+                No high-correlation, low-variance or
+                potential-leakage features were detected.
+            </p>
+
+            {% endif %}
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- TARGET ENCODING -->
+        <!-- ============================================= -->
+
+        {% if prep["target_info"] and prep["target_info"]["mapping"] %}
+
+        <section class="ta-card" aria-label="Target encoding">
+
+            <h2>
+                Target Encoding
+            </h2>
+
+            <p>
+                For classification, string labels are encoded
+                to integers for the model:
+            </p>
+
+            <div class="ta-table-wrap" role="region" aria-label="Target encoding" tabindex="0">
+
+                <table>
+
+                    <tr>
+                        <th scope="col">Label</th>
+                        <th scope="col">Encoded Value</th>
+                    </tr>
+
+                    {% for label, value in prep["target_info"]["mapping"].items() %}
+
+                    <tr>
+
+                        <td>{{ label }}</td>
+
+                        <td>{{ value }}</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+        </section>
 
         {% endif %}
 
-    </div>
 
+        <!-- ============================================= -->
+        <!-- NEXT STAGE -->
+        <!-- ============================================= -->
 
-    <!-- ================================================= -->
-    <!-- TRANSFORMATION PREVIEW -->
-    <!-- ================================================= -->
+        <section class="ta-card ta-card--glow" aria-label="Next stage">
 
-    <div class="card">
+            <h2>
+                Data Ready
+            </h2>
 
-        <h2>
-            Transformation Preview
-        </h2>
+            <p>
+                The dataset is prepared for
+                <strong>{{ problem_type }}</strong>.
+            </p>
 
-        <p class="meta">
-            Note: this preview fits the pipeline on the
-            full dataset only to demonstrate the output
-            shape. During real training the pipeline is
-            fitted on the training fold only.
-        </p>
+            {% if problem_type == "Clustering" %}
 
-        <table>
-
-            <tr>
-                <th>Rows</th>
-                <th>Features Before Encoding</th>
-                <th>Features After Encoding</th>
-            </tr>
-
-            <tr>
-
-                <td>{{ prep["preview"]["rows"] }}</td>
-
-                <td>{{ prep["preview"]["features_before"] }}</td>
-
-                <td>{{ prep["preview"]["features_after"] }}</td>
-
-            </tr>
-
-        </table>
-
-        {% if prep["preview"]["feature_names"] %}
-
-        <h3>
-            Encoded Feature Names
-        </h3>
-
-        <p class="meta">
-            {{ prep["preview"]["feature_names"] | join(", ") }}
-        </p>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- FEATURE SELECTION -->
-    <!-- ================================================= -->
-
-    <div class="card">
-
-        <h2>
-            Feature Selection Report
-        </h2>
-
-        <p>
-            <strong>
-                Number of usable features:
-            </strong>
-
-            {{ selection["feature_count"] }}
-        </p>
-
-        {% if prep.get("feature_accounting") %}
-        {% set fa = prep["feature_accounting"] %}
-
-        <h3>
-            Feature Accounting
-        </h3>
-
-        <table>
-
-            <tr>
-                <th>Stage</th>
-                <th>Count / Detail</th>
-            </tr>
-
-            <tr>
-                <td>Raw feature columns</td>
-                <td>{{ fa["raw_feature_columns"] }}</td>
-            </tr>
-
-            <tr>
-                <td>Identifier columns removed</td>
-                <td>{{ fa["identifier_columns_removed"] | length }}
-                    {% if fa["identifier_columns_removed"] %}
-                    ({{ fa["identifier_columns_removed"] | join(", ") }})
-                    {% endif %}
-                </td>
-            </tr>
-
-            <tr>
-                <td>Unsupported columns excluded</td>
-                <td>{{ fa["unsupported_columns_excluded"] | length }}
-                    {% if fa["unsupported_columns_excluded"] %}
-                    ({{ fa["unsupported_columns_excluded"] | join(", ") }})
-                    {% endif %}
-                </td>
-            </tr>
-
-            <tr>
-                <td>Raw usable feature columns</td>
-                <td>{{ fa["raw_usable_count"] }}</td>
-            </tr>
-
-            <tr>
-                <td>Generated transformed features</td>
-                <td>{{ fa["generated_transformed_features"] }}</td>
-            </tr>
-
-            <tr>
-                <td>Feature selection applied</td>
-                <td>
-                    {% if fa["feature_selection_applied"] %}
-                    Yes
-                    {% else %}
-                    No — {{ fa["selection_note"] }}
-                    {% endif %}
-                </td>
-            </tr>
-
-            <tr>
-                <td>Features removed by selection</td>
-                <td>{{ fa["features_removed_by_selection"] }}</td>
-            </tr>
-
-            <tr>
-                <td>Final model features</td>
-                <td>{{ fa["final_model_features"] }}</td>
-            </tr>
-
-        </table>
-
-        {% endif %}
-
-        {% if selection["high_correlation"] %}
-
-        <h3>
-            Highly Correlated Feature Pairs
-        </h3>
-
-        <p class="warning-text">
-            These pairs may carry redundant information.
-            TaskAware reports them but does not automatically
-            remove features.
-        </p>
-
-        <table>
-
-            <tr>
-                <th>Feature A</th>
-                <th>Feature B</th>
-                <th>Correlation</th>
-                <th>Level</th>
-            </tr>
-
-            {% for item in selection["high_correlation"] %}
-
-            <tr>
-
-                <td>{{ item["feature_a"] }}</td>
-
-                <td>{{ item["feature_b"] }}</td>
-
-                <td>{{ item["correlation"] }}</td>
-
-                <td>{{ item["redundancy_level"] }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-        {% endif %}
-
-        {% if selection["low_variance"] %}
-
-        <h3>
-            Low Information Features
-        </h3>
-
-        <p class="warning-text">
-            These features have very little variation and
-            may add limited predictive value.
-        </p>
-
-        <table>
-
-            <tr>
-                <th>Column</th>
-                <th>Standard Deviation</th>
-                <th>Note</th>
-            </tr>
-
-            {% for item in selection["low_variance"] %}
-
-            <tr>
-
-                <td>{{ item["column"] }}</td>
-
-                <td>{{ item["std"] if item["std"] is not none else "-" }}</td>
-
-                <td>{{ item["note"] }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-        {% endif %}
-
-        {% if selection["leakage_candidates"] %}
-
-        <h3>
-            Potential Leakage Candidates
-        </h3>
-
-        <p class="warning-text">
-            The following features correlate strongly with
-            the target. Review whether they would be known
-            before the outcome occurs.
-        </p>
-
-        <table>
-
-            <tr>
-                <th>Feature</th>
-                <th>Correlation with Target</th>
-                <th>Warning</th>
-            </tr>
-
-            {% for item in selection["leakage_candidates"] %}
-
-            <tr>
-
-                <td>{{ item["column"] }}</td>
-
-                <td>{{ item["correlation_with_target"] }}</td>
-
-                <td>{{ item["warning"] }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-        {% endif %}
-
-        {% if not selection["high_correlation"]
-              and not selection["low_variance"]
-              and not selection["leakage_candidates"] %}
-
-        <p>
-            No high-correlation, low-variance or
-            potential-leakage features were detected.
-        </p>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- TARGET ENCODING -->
-    <!-- ================================================= -->
-
-    {% if prep["target_info"] and prep["target_info"]["mapping"] %}
-
-    <div class="card">
-
-        <h2>
-            Target Encoding
-        </h2>
-
-        <p>
-            For classification, string labels are encoded
-            to integers for the model:
-        </p>
-
-        <table>
-
-            <tr>
-                <th>Label</th>
-                <th>Encoded Value</th>
-            </tr>
-
-            {% for label, value in prep["target_info"]["mapping"].items() %}
-
-            <tr>
-
-                <td>{{ label }}</td>
-
-                <td>{{ value }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-    </div>
-
-    {% endif %}
-
-
-    <!-- ================================================= -->
-    <!-- NEXT STAGE -->
-    <!-- ================================================= -->
-
-    <div class="card">
-
-        <h2>
-            Data Ready
-        </h2>
-
-        <p>
-            The dataset is prepared for
-            <strong>{{ problem_type }}</strong>.
-        </p>
-
-        {% if problem_type == "Clustering" %}
-
-        <form
-            action="/clustering"
-            method="POST"
-        >
-
-            <input
-                type="hidden"
-                name="filename"
-                value="{{ filename }}"
+            <form
+                action="/clustering"
+                method="POST"
             >
 
-            <input
-                type="hidden"
-                name="objective"
-                value="{{ objective }}"
+                <input
+                    type="hidden"
+                    name="filename"
+                    value="{{ filename }}"
+                >
+
+                <input
+                    type="hidden"
+                    name="objective"
+                    value="{{ objective }}"
+                >
+
+                <button type="submit" class="ta-btn">
+                    Proceed to Cluster Analysis
+                </button>
+
+            </form>
+
+            {% else %}
+
+            <form
+                action="/model-training"
+                method="POST"
             >
 
-            <button type="submit">
-                Proceed to Cluster Analysis
-            </button>
+                <input
+                    type="hidden"
+                    name="filename"
+                    value="{{ filename }}"
+                >
 
-        </form>
+                <input
+                    type="hidden"
+                    name="target"
+                    value="{{ target_column or '' }}"
+                >
 
-        {% else %}
+                <input
+                    type="hidden"
+                    name="problem_type"
+                    value="{{ problem_type }}"
+                >
 
-        <form
-            action="/model-training"
-            method="POST"
-        >
+                <input
+                    type="hidden"
+                    name="objective"
+                    value="{{ objective }}"
+                >
 
-            <input
-                type="hidden"
-                name="filename"
-                value="{{ filename }}"
-            >
+                <button type="submit" class="ta-btn">
+                    Proceed to Model Training
+                </button>
 
-            <input
-                type="hidden"
-                name="target"
-                value="{{ target_column or '' }}"
-            >
+            </form>
 
-            <input
-                type="hidden"
-                name="problem_type"
-                value="{{ problem_type }}"
-            >
+            {% endif %}
 
-            <input
-                type="hidden"
-                name="objective"
-                value="{{ objective }}"
-            >
+        </section>
 
-            <button type="submit">
-                Proceed to Model Training
-            </button>
-
-        </form>
-
-        {% endif %}
-
-    </div>
+    </main>
 
 
-    <br>
+    <footer>
 
-    <a href="/upload">
-        ← Upload Another Dataset
-    </a>
+        <br>
+
+        <a href="/upload">
+            ← Upload Another Dataset
+        </a>
+
+    </footer>
 
 </body>
 

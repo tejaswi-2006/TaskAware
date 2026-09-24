@@ -207,13 +207,18 @@ def cross_validate_model(
                 round(float(s), 4)
                 for s in scores
             ],
+            "error": None,
         }
 
-    except Exception:
+    except Exception as exc:
         return {
             "mean": None,
             "std": None,
             "all_folds": [],
+            "error": (
+                "Cross-validation could not complete: "
+                f"{str(exc)[:160]}"
+            ),
         }
 
 
@@ -247,7 +252,13 @@ def train_and_evaluate(
         ]
     )
 
+    import time as _time
+
+    _fit_start = _time.perf_counter()
     pipeline.fit(X_train, y_train)
+    train_seconds = round(
+        _time.perf_counter() - _fit_start, 3
+    )
 
     y_pred = pipeline.predict(X_test)
 
@@ -280,6 +291,8 @@ def train_and_evaluate(
             y_test,
             y_pred,
         )
+
+    metrics["train_seconds"] = train_seconds
 
     return pipeline, y_pred, metrics
 

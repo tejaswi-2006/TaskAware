@@ -17,6 +17,7 @@ from modules.data_validator import (
 )
 from modules.initial_eda import perform_initial_eda
 from modules.objective_target import analyze_target_candidates
+from modules.schema_analyzer import analyze_schema
 from modules.problem_type_detector import detect_problem_type
 from modules.decision_engine import decide_route
 from modules.detailed_eda import perform_detailed_eda
@@ -529,7 +530,8 @@ def upload_dataset():
                 )
 
         return render_template(
-            "upload.html"
+            "upload.html",
+            workflow_stage="upload",
         )
 
     # --------------------------------------------------------
@@ -703,7 +705,11 @@ def upload_dataset():
 
         validation_results=validation_results,
 
-        eda_results=eda_results
+        eda_results=eda_results,
+
+        workflow_stage="schema",
+
+        confirmed_groups=get_confirmed_groups(filename)
     )
 
 
@@ -845,6 +851,7 @@ def analyze_objective():
         return render_template(
 
             "objective_analysis.html",
+            workflow_stage="target",
 
             filename=filename,
 
@@ -874,6 +881,7 @@ def analyze_objective():
         return render_template(
 
             "objective_analysis.html",
+            workflow_stage="target",
 
             filename=filename,
 
@@ -895,6 +903,7 @@ def analyze_objective():
     return render_template(
 
         "objective_analysis.html",
+        workflow_stage="target",
 
         filename=filename,
 
@@ -1034,6 +1043,7 @@ def compare_target():
         return render_template(
 
             "objective_analysis.html",
+            workflow_stage="target",
 
             filename=filename,
 
@@ -1061,6 +1071,7 @@ def compare_target():
         return render_template(
 
             "objective_analysis.html",
+            workflow_stage="target",
 
             filename=filename,
 
@@ -1082,6 +1093,7 @@ def compare_target():
     return render_template(
 
         "target_comparison.html",
+        workflow_stage="target",
 
         filename=filename,
 
@@ -1257,12 +1269,44 @@ def confirm_target():
     )
 
     # --------------------------------------------------------
+    # OPTIONAL CLASS MEANINGS (stored per dataset/target)
+    # --------------------------------------------------------
+
+    class_meanings = request.form.get(
+        "class_meanings",
+        ""
+    ).strip()
+
+    if class_meanings:
+        stored_meanings = session.get("class_meanings", {})
+
+        if not isinstance(stored_meanings, dict):
+            stored_meanings = {}
+
+        stored_meanings.setdefault(filename, {})[
+            selected_target
+        ] = class_meanings[:2000]
+
+        session["class_meanings"] = stored_meanings
+    else:
+        stored_meanings = session.get("class_meanings", {})
+
+        class_meanings = (
+            stored_meanings.get(filename, {}).get(
+                selected_target, ""
+            )
+            if isinstance(stored_meanings, dict)
+            else ""
+        )
+
+    # --------------------------------------------------------
     # CONFIRMED TARGET PAGE
     # --------------------------------------------------------
 
     return render_template(
 
         "target_confirmed.html",
+        workflow_stage="target",
 
         selected_target=selected_target,
 
@@ -1272,7 +1316,156 @@ def confirm_target():
 
         objective=objective,
 
-        selected_info=selected_info
+        selected_info=selected_info,
+
+        class_meanings=class_meanings
+    )
+
+
+# ============================================================
+# CONFIRM AMBIGUOUS GROUP COLUMNS
+# ============================================================
+
+def get_confirmed_groups(filename):
+    """
+    User-confirmed ambiguous group columns for a dataset.
+    Low-confidence candidates are never auto-used for
+    splitting; confirmation is recorded as an explicit
+    user decision shown across pages.
+    """
+    stored = session.get("confirmed_groups", {})
+
+    if not isinstance(stored, dict):
+        return []
+
+    confirmed = stored.get(filename, [])
+
+    return list(confirmed) if isinstance(confirmed, list) else []
+
+
+def get_class_meanings(filename, target_column):
+    """
+    Optional user-provided class meanings stored at target
+    confirmation time. Displayed alongside per-class
+    metrics; never used for computation.
+    """
+    stored = session.get("class_meanings", {})
+
+    if not isinstance(stored, dict):
+        return ""
+
+    per_file = stored.get(filename, {})
+
+    if not isinstance(per_file, dict):
+        return ""
+
+    return per_file.get(target_column, "")
+
+
+@app.route(
+    "/confirm-groups",
+    methods=["POST"]
+)
+def confirm_groups():
+
+    filename = request.form.get(
+        "filename",
+        ""
+    ).strip()
+
+    if not filename:
+        return "Dataset information is missing."
+
+    filename = secure_filename(filename)
+
+    filepath = os.path.join(
+        app.config["UPLOAD_FOLDER"],
+        filename
+    )
+
+    if not os.path.exists(filepath):
+        return "Dataset file not found."
+
+    try:
+        df = load_dataset(filepath)
+    except Exception as e:
+        return f"Unable to read dataset: {str(e)}"
+
+    schema = analyze_schema(df)
+
+    ambiguous = [
+        record["column"]
+        for record in schema["columns"]
+        if record.get("group_candidate")
+        and record.get("group_confidence") == "low"
+    ]
+
+    chosen = [
+        column
+        for column in request.form.getlist("groups")
+        if column in df.columns and column in ambiguous
+    ]
+
+    stored = session.get("confirmed_groups", {})
+
+    if not isinstance(stored, dict):
+        stored = {}
+
+    stored[filename] = chosen
+    session["confirmed_groups"] = stored
+
+    if chosen:
+        flash(
+            f"Confirmed group columns: {', '.join(chosen)}. "
+            "Low-confidence candidates are otherwise never "
+            "used automatically for group-aware splitting.",
+            "success",
+        )
+    else:
+        flash(
+            "No group columns confirmed. Ambiguous "
+            "candidates remain excluded from automatic "
+            "group-aware splitting.",
+            "info",
+        )
+
+    try:
+        validation_results = validate_dataset(df)
+    except Exception as e:
+        validation_results = {
+            "success": False,
+            "message": f"Validation failed: {str(e)}",
+        }
+
+    try:
+        eda_results = perform_initial_eda(df)
+    except Exception as e:
+        eda_results = {
+            "success": False,
+            "message": f"Initial EDA failed: {str(e)}",
+        }
+
+    rows, columns = df.shape
+
+    return render_template(
+        "dataset_overview.html",
+        filename=filename,
+        rows=rows,
+        columns=columns,
+        column_names=df.columns.tolist(),
+        data_types=df.dtypes.astype(str).to_dict(),
+        missing_values=df.isnull().sum().to_dict(),
+        duplicate_rows=int(
+            safe_duplicate_check(df)["duplicate_rows_detected"]
+        ),
+        preview=df.head().to_html(
+            classes="table",
+            index=False,
+        ),
+        validation_results=validation_results,
+        eda_results=eda_results,
+        workflow_stage="schema",
+        confirmed_groups=chosen,
     )
 
 
@@ -1427,6 +1620,7 @@ def detailed_eda():
     return render_template(
 
         "detailed_eda.html",
+        workflow_stage="eda",
 
         filename=filename,
 
@@ -1589,6 +1783,7 @@ def preprocessing():
     return render_template(
 
         "preprocessing.html",
+        workflow_stage="preprocessing",
 
         filename=filename,
 
@@ -1600,7 +1795,14 @@ def preprocessing():
 
         prep=prep,
 
-        selection=selection
+        selection=selection,
+
+        confirmed_groups=get_confirmed_groups(filename),
+
+        class_meanings=get_class_meanings(
+            filename,
+            prep["target_column"],
+        )
     )
 
 
@@ -1732,6 +1934,7 @@ def model_training():
     return render_template(
 
         "model_results.html",
+        workflow_stage="modelling",
 
         filename=filename,
 
@@ -1743,7 +1946,14 @@ def model_training():
 
         training=training,
 
-        best=best
+        best=best,
+
+        confirmed_groups=get_confirmed_groups(filename),
+
+        class_meanings=get_class_meanings(
+            filename,
+            target_column,
+        )
     )
 
 
@@ -1857,6 +2067,7 @@ def clustering():
     return render_template(
 
         "clustering_results.html",
+        workflow_stage="modelling",
 
         filename=filename,
 
@@ -1959,6 +2170,7 @@ def explainability():
 
         return render_template(
             "explainability.html",
+            workflow_stage="explainability",
             filename=filename,
             target_column=None,
             problem_type=problem_type,
@@ -2073,6 +2285,7 @@ def explainability():
 
     return render_template(
         "explainability.html",
+        workflow_stage="explainability",
         filename=filename,
         target_column=target_column,
         problem_type=problem_type,
@@ -2462,12 +2675,18 @@ def ai_explanation():
         explanation_result
     )
 
+    presentation["class_meanings"] = get_class_meanings(
+        filename,
+        target_column,
+    )
+
     # --------------------------------------------------------
     # RESULTS PAGE
     # --------------------------------------------------------
 
     return render_template(
         "ai_explanation.html",
+        workflow_stage="explainability",
         filename=filename,
         target_column=target_column or None,
         problem_type=problem_type,
@@ -2611,6 +2830,15 @@ def report():
             f"{str(e)}"
         )
 
+    report_data["class_meanings"] = get_class_meanings(
+        filename,
+        target_column,
+    )
+
+    report_data["confirmed_groups"] = get_confirmed_groups(
+        filename
+    )
+
     # --------------------------------------------------------
     # SAVE + RENDER
     # --------------------------------------------------------
@@ -2677,6 +2905,7 @@ def report():
 
     return render_template(
         "report.html",
+        workflow_stage="report",
         report=report_data,
         report_saved=True,
         run_id=run_id,

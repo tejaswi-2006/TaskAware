@@ -1,45 +1,79 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-motion="full" data-view="rich">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Upload Dataset | TaskAware</title>
+
+    <link rel="stylesheet"
+          href="/static/css/taskaware.css">
+
+    <script src="/static/js/taskaware.js" defer></script>
 </head>
 
-<body>
+<body class="ta-body">
 
-    <h1>Upload Your Dataset</h1>
-
-    <p>
-        Upload a CSV or Excel dataset to begin the analysis.
-    </p>
-
-    <form action="/upload" method="POST" enctype="multipart/form-data">
-        <label for="dataset">Choose Dataset:</label>
-
-        <br><br>
-
-        <input 
-            type="file" 
-            id="dataset" 
-            name="dataset"
-            accept=".csv,.xlsx"
-        >
-
-        <br><br>
-
-        <button type="submit">
-            Upload and Analyze
-        </button>
-    </form>
-
-    <br>
-
-    <a href="/">
-        Back to Home
+    <a class="ta-skip-link" href="#ta-main">
+        Skip to main content
     </a>
+
+    {% include "_toggles.html" %}
+
+    <header>
+
+        <h1>Upload Your Dataset</h1>
+
+        {% include "_timeline.html" %}
+
+    </header>
+
+    <main id="ta-main">
+
+        <section class="ta-card ta-card--glow" aria-label="Upload dataset">
+
+            <p>
+                Upload a CSV or Excel dataset to begin the analysis.
+            </p>
+
+            <form action="/upload" method="POST" enctype="multipart/form-data">
+                <label for="dataset">Choose Dataset:</label>
+
+                <br><br>
+
+                <input
+                    type="file"
+                    id="dataset"
+                    name="dataset"
+                    accept=".csv,.xlsx"
+                    aria-describedby="upload-help"
+                >
+
+                <p class="ta-note" id="upload-help">
+                    CSV or XLSX files. Nested dictionary or list
+                    columns are reported as unsupported; the rest
+                    of the dataset still analyses normally.
+                </p>
+
+                <button type="submit" class="ta-btn">
+                    Upload and Analyze
+                </button>
+            </form>
+
+        </section>
+
+    </main>
+
+    <footer>
+
+        <br>
+
+        <a href="/">
+            Back to Home
+        </a>
+
+    </footer>
 
 </body>
 

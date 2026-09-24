@@ -92,10 +92,21 @@
 
     </style>
 
+    <link rel="stylesheet"
+          href="/static/css/taskaware.css">
+
+    <script src="/static/js/taskaware.js" defer></script>
+
 </head>
 
 
-<body>
+<body class="ta-body">
+
+    <a class="ta-skip-link" href="#ta-main">
+        Skip to main content
+    </a>
+
+    {% include "_toggles.html" %}
 
     <div class="topbar">
 

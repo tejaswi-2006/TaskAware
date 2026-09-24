@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-motion="full" data-view="rich">
 
 <head>
     <meta charset="UTF-8">
@@ -9,664 +9,827 @@
 
     <title>Dataset Overview | TaskAware</title>
 
-    <style>
+    <link rel="stylesheet"
+          href="/static/css/taskaware.css">
 
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1100px;
-            margin: 40px auto;
-            padding: 20px;
-            line-height: 1.6;
-        }
+    <script src="/static/js/taskaware.js" defer></script>
 
-        h1 {
-            margin-bottom: 5px;
-        }
-
-        .box {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-
-        .note {
-            color: #555;
-        }
-
-        textarea {
-            width: 100%;
-            min-height: 110px;
-            padding: 12px;
-            font-size: 15px;
-            box-sizing: border-box;
-        }
-
-        select {
-            width: 100%;
-            padding: 12px;
-            font-size: 15px;
-        }
-
-        button {
-            padding: 11px 20px;
-            font-size: 15px;
-            cursor: pointer;
-        }
-
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-top: 10px;
-        }
-
-        th,
-        td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background: #f3f3f3;
-        }
-
-    </style>
 </head>
 
 
-<body>
+<body class="ta-body">
 
-    <h1>Dataset Overview</h1>
+    <a class="ta-skip-link" href="#ta-main">
+        Skip to main content
+    </a>
 
-    <h3>File Name: {{ filename }}</h3>
+    {% include "_toggles.html" %}
 
-    <hr>
+    <header>
 
+        <h1>Dataset Overview</h1>
 
-    <!-- DATASET SHAPE -->
-
-    <div class="box">
-
-        <h2>Dataset Shape</h2>
-
-        <p>
-            <strong>Number of Rows:</strong>
-            {{ rows }}
+        <p class="ta-meta">
+            File: {{ filename }}
         </p>
 
-        <p>
-            <strong>Number of Columns:</strong>
-            {{ columns }}
-        </p>
+        {% include "_timeline.html" %}
 
-    </div>
+    </header>
 
 
-    <!-- DATASET VALIDATION -->
-
-    <div class="box">
-
-        <h2>Dataset Quality</h2>
-
-        <p>
-            <strong>Is Dataset Empty:</strong>
-            {{ validation_results["is_empty"] }}
-        </p>
-
-        <p>
-            <strong>Duplicate Rows:</strong>
-            {{ duplicate_rows }}
-        </p>
-
-        {% if validation_results.get("duplicate_check_status") == "partial" %}
-
-        <p>
-            <strong>Dataset validation completed with limitations.</strong>
-        </p>
-
-        <p>
-            <strong>Duplicate check:</strong>
-            Partial duplicate check completed.
-            Nested object columns were excluded from
-            duplicate hashing.
-            ({{ validation_results.get("duplicate_check_scope") }}.)
-            Duplicate count may not include duplicates
-            distinguishable only through nested object
-            content.
-        </p>
-
-        {% if validation_results.get("unsupported_columns_ignored_for_duplicate_check") %}
-
-        <p>
-            <strong>Unsupported columns:</strong>
-            {{ validation_results.get("unsupported_columns_ignored_for_duplicate_check") | join(", ") }}
-            (dictionary/list values — excluded from
-            duplicate hashing, reported separately below).
-        </p>
-
-        {% endif %}
-
-        {% elif validation_results.get("duplicate_check_status") == "skipped" %}
-
-        <p>
-            <strong>Duplicate check:</strong>
-            {{ validation_results.get("duplicate_check_warning") }}
-        </p>
-
-        {% endif %}
-
-
-        <h3>Constant Columns</h3>
-
-        {% if validation_results["constant_columns"] %}
-
-        <ul>
-            {% for column in validation_results["constant_columns"] %}
-            <li>{{ column }}</li>
-            {% endfor %}
-        </ul>
-
-        {% else %}
-
-        <p class="note">
-            No constant columns found.
-        </p>
-
-        {% endif %}
-
-
-        <h3>Possible ID Columns</h3>
-
-        {% if validation_results["possible_id_columns"] %}
-
-        <ul>
-            {% for column in validation_results["possible_id_columns"] %}
-            <li>{{ column }}</li>
-            {% endfor %}
-        </ul>
-
-        {% else %}
-
-        <p class="note">
-            No possible ID columns found.
-        </p>
-
-        {% endif %}
-
-
-        <h3>Text Columns</h3>
-
-        {% if validation_results["text_columns"] %}
-
-        <ul>
-            {% for column in validation_results["text_columns"] %}
-            <li>{{ column }}</li>
-            {% endfor %}
-        </ul>
-
-        <p class="note">
-            Text columns will be converted to numerical
-            features using TF-IDF.
-        </p>
-
-        {% else %}
-
-        <p class="note">
-            No text columns found.
-        </p>
-
-        {% endif %}
-
-
-        <h3>Date Columns</h3>
-
-        {% if validation_results["date_columns"] %}
-
-        <ul>
-            {% for column in validation_results["date_columns"] %}
-            <li>{{ column }}</li>
-            {% endfor %}
-        </ul>
-
-        <p class="note">
-            Date columns will be converted to year, month,
-            day and related components.
-        </p>
-
-        {% else %}
-
-        <p class="note">
-            No date columns found.
-        </p>
-
-        {% endif %}
-
-
-        <h3>Unsupported Columns</h3>
-
-        {% if validation_results["unsupported_columns"] %}
-
-        <ul>
-            {% for column in validation_results["unsupported_columns"] %}
-            <li>{{ column }}</li>
-            {% endfor %}
-        </ul>
-
-        <p class="note">
-            These columns contain unsupported object types
-            (lists, dicts, bytes, etc.) and are excluded from
-            the analysis.
-        </p>
-
-        {% else %}
-
-        <p class="note">
-            No unsupported columns found.
-        </p>
-
-        {% endif %}
-
+    <main id="ta-main">
 
         {% set _schema = eda_results.get("schema") %}
-
-        {% if _schema %}
-
-        <h3>Group-Aware Validation</h3>
-
-        {% if _schema.get("group_columns") %}
-
-        <p>
-            <strong>Group columns:</strong>
-            {{ _schema.get("group_columns") | join(", ") }}
-        </p>
-
-        <p class="note">
-            {{ _schema.get("validation_strategy", {}).get("strategy", "") }}.
-            {{ _schema.get("validation_strategy", {}).get("reason", "") }}.
-        </p>
-
-        {% else %}
-
-        <p class="note">
-            No repeated-entity groups detected.
-            {{ _schema.get("validation_strategy", {}).get("strategy", "") }}
-            will be used.
-        </p>
-
-        {% endif %}
-
-        {% if _schema.get("high_cardinality_columns") %}
-
-        <h3>High-Cardinality Columns</h3>
-
-        <ul>
-            {% for column in _schema.get("high_cardinality_columns") %}
-            <li>{{ column }}</li>
-            {% endfor %}
-        </ul>
-
-        {% endif %}
-
-        {% endif %}
-
-    </div>
+        {% set _records = _schema.get("columns", []) if _schema else [] %}
+        {% set _warn_count = namespace(n=0) %}
+        {% if validation_results.get("constant_columns") %}{% set _warn_count.n = _warn_count.n + validation_results["constant_columns"] | length %}{% endif %}
+        {% if validation_results.get("possible_id_columns") %}{% set _warn_count.n = _warn_count.n + validation_results["possible_id_columns"] | length %}{% endif %}
+        {% if validation_results.get("unsupported_columns") %}{% set _warn_count.n = _warn_count.n + validation_results["unsupported_columns"] | length %}{% endif %}
+        {% if _schema and _schema.get("high_cardinality_columns") %}{% set _warn_count.n = _warn_count.n + _schema["high_cardinality_columns"] | length %}{% endif %}
+        {% if validation_results.get("duplicate_check_status") != "complete" %}{% set _warn_count.n = _warn_count.n + 1 %}{% endif %}
 
 
-    <!-- COLUMN INFORMATION -->
+        <!-- ============================================= -->
+        <!-- SUMMARY CARDS -->
+        <!-- ============================================= -->
 
-    <div class="box">
+        <section aria-label="Dataset summary">
 
-        <h2>Column Information</h2>
+            <div class="ta-grid">
 
-        <table>
+                <div class="ta-card">
+                    <div class="ta-label">Rows</div>
+                    <div class="ta-stat">{{ rows }}</div>
+                </div>
 
-            <tr>
-                <th>Column</th>
-                <th>Data Type</th>
-                <th>Role</th>
-                <th>Unique Values</th>
-                <th>Missing Values</th>
-            </tr>
+                <div class="ta-card">
+                    <div class="ta-label">Columns</div>
+                    <div class="ta-stat">{{ columns }}</div>
+                </div>
 
-            {% for column in column_names %}
+                <div class="ta-card">
+                    <div class="ta-label">Missing Values</div>
+                    <div class="ta-stat">{{ validation_results.get("total_missing", 0) }}</div>
+                </div>
 
-            <tr>
+                <div class="ta-card">
+                    <div class="ta-label">Duplicate Rows</div>
+                    <div class="ta-stat">{{ duplicate_rows }}</div>
+                    {% if validation_results.get("duplicate_check_status") == "partial" %}
+                    <span class="ta-badge ta-badge--warn">! Partial check</span>
+                    {% elif validation_results.get("duplicate_check_status") == "skipped" %}
+                    <span class="ta-badge ta-badge--bad">✕ Skipped</span>
+                    {% else %}
+                    <span class="ta-badge ta-badge--ok">✓ Full check</span>
+                    {% endif %}
+                </div>
 
-                <td>{{ column }}</td>
+                <div class="ta-card">
+                    <div class="ta-label">Warnings</div>
+                    <div class="ta-stat">{{ _warn_count.n }}</div>
+                    {% if _warn_count.n == 0 %}
+                    <span class="ta-badge ta-badge--ok">✓ Healthy</span>
+                    {% elif _warn_count.n <= 3 %}
+                    <span class="ta-badge ta-badge--warn">! Review advised</span>
+                    {% else %}
+                    <span class="ta-badge ta-badge--bad">✕ Needs attention</span>
+                    {% endif %}
+                </div>
 
-                <td>{{ data_types[column] }}</td>
+                <div class="ta-card">
+                    <div class="ta-label">Text / Date / Unsupported</div>
+                    <div class="ta-stat">{{ validation_results.get("text_columns", []) | length }} / {{ validation_results.get("date_columns", []) | length }} / {{ validation_results.get("unsupported_columns", []) | length }}</div>
+                </div>
 
-                <td>
-                    {{ eda_results["column_roles"].get(column, "-") }}
-                </td>
+            </div>
 
-                <td>
-                    {{ eda_results["unique_values"].get(column, 0) }}
-                </td>
-
-                <td>
-                    {{ missing_values[column] }}
-                </td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-    </div>
+        </section>
 
 
-    <!-- SEMANTIC SCHEMA ANALYSIS -->
+        <!-- ============================================= -->
+        <!-- DATA HEALTH -->
+        <!-- ============================================= -->
 
-    <div class="box">
+        <section class="ta-card {% if _warn_count.n == 0 %}ta-card--success{% elif _warn_count.n <= 3 %}ta-card--warning{% else %}ta-card--danger{% endif %}" aria-label="Dataset health">
 
-        <h2>Semantic Schema Analysis</h2>
+            <h2>
+                Dataset Health
+            </h2>
 
-        <p class="note">
-            Detected semantic type and role for each column,
-            with confidence, recommended transformation and
-            warnings. Text is never classified as an identifier
-            only because its values are highly unique.
-        </p>
-
-        {% set _records = eda_results.get("schema", {}).get("columns", []) %}
-
-        {% if _records %}
-
-        <table>
-
-            <tr>
-                <th>Column</th>
-                <th>Raw Type</th>
-                <th>Semantic Type</th>
-                <th>Role</th>
-                <th>Unique</th>
-                <th>Missing</th>
-                <th>Confidence</th>
-                <th>Recommended Transformation</th>
-            </tr>
-
-            {% for record in _records %}
-
-            <tr>
-
-                <td>{{ record.get("column") }}</td>
-
-                <td>{{ record.get("raw_dtype", record.get("dtype")) }}</td>
-
-                <td>{{ record.get("semantic_type") }}</td>
-
-                <td>{{ record.get("role") }}</td>
-
-                <td>
-                    {{ record.get("unique_count") }}
-                    ({{ record.get("unique_ratio") }})
-                </td>
-
-                <td>
-                    {{ record.get("missing_count") }}
-                    ({{ record.get("missing_ratio") }})
-                </td>
-
-                <td>{{ record.get("confidence") }}</td>
-
-                <td>{{ record.get("recommended_transformation") }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-        {% for record in _records %}
-
-        <h3>{{ record.get("column") }}</h3>
-
-        <ul>
-
-            <li>
-                <strong>Target suitability:</strong>
-                {{ record.get("target_suitability", {}).get("recommendation_level", "-") }}
-                {% if record.get("target_suitability", {}).get("target_problem_type") %}
-                ({{ record.get("target_suitability", {}).get("target_problem_type") }})
-                {% endif %}
-            </li>
-
-            {% if record.get("boolean_encoding") %}
-            <li>
-                <strong>Boolean encoding:</strong>
-                {{ record.get("boolean_encoding") }}
-                (likelihood {{ record.get("boolean_likelihood") }})
-            </li>
+            {% if _warn_count.n == 0 %}
+            <p>
+                <span class="ta-badge ta-badge--ok">✓ No issues found</span>
+                The dataset passed all structural checks.
+            </p>
+            {% else %}
+            <p>
+                {{ _warn_count.n }} item(s) deserve attention
+                before modelling. Details are listed in the
+                quality and column sections below.
+            </p>
             {% endif %}
 
-            {% if record.get("cardinality_warning") %}
-            <li>
-                <strong>Cardinality ({{ record.get("cardinality_level") }}):</strong>
-                {{ record.get("cardinality_warning") }}
-            </li>
-            {% endif %}
-
-            {% if record.get("group_candidate") %}
-            <li>
-                <strong>Possible group candidate:</strong>
-                yes ({{ record.get("group_confidence") }} confidence,
-                {{ record.get("repeated_entity_count") }} entities,
-                up to {{ record.get("max_rows_per_entity") }} rows per entity).
-                Use group-aware validation to avoid leakage.
-            </li>
-            {% endif %}
-
-            {% if record.get("unsupported_details") %}
-            <li>
-                <strong>Unsupported column:</strong>
-                detected value types:
-                {{ record.get("unsupported_details", {}).get("detected_value_types") }}.
-                {{ record.get("unsupported_details", {}).get("reason") }}
-                Recommended action:
-                {{ record.get("unsupported_details", {}).get("recommended_action") }}
-            </li>
-            {% endif %}
-
-            {% if record.get("warnings") %}
-            <li>
-                <strong>Warnings:</strong>
-                {{ record.get("warnings") | join("; ") }}
-            </li>
-            {% endif %}
-
-            {% if record.get("evidence") %}
-            <li>
-                <strong>Evidence:</strong>
-                {{ record.get("evidence") | join("; ") }}
-            </li>
-            {% endif %}
-
-        </ul>
-
-        {% endfor %}
-
-        {% else %}
-
-        <p class="note">
-            Schema details are unavailable for this dataset.
-        </p>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- INITIAL EDA -->
-
-    <div class="box">
-
-        <h2>Initial Exploratory Data Analysis</h2>
-
-        <p>
-            <strong>Numerical Columns:</strong>
-            {{ eda_results["numerical_columns"] | length }}
-        </p>
-
-        <p>
-            <strong>Categorical Columns:</strong>
-            {{ eda_results["categorical_columns"] | length }}
-        </p>
-
-        {% if eda_results["statistical_summary"] %}
-
-        <h3>Statistical Summary</h3>
-
-        <table border="1" cellpadding="8">
-
-            <tr>
-                <th>Column</th>
-                <th>Mean</th>
-                <th>Std</th>
-                <th>Min</th>
-                <th>25%</th>
-                <th>50%</th>
-                <th>75%</th>
-                <th>Max</th>
-            </tr>
-
-            {% for column in eda_results["numerical_columns"] %}
-
-            <tr>
-
-                <td>{{ column }}</td>
-                <td>{{ eda_results["statistical_summary"][column].get("mean", "-") }}</td>
-                <td>{{ eda_results["statistical_summary"][column].get("std", "-") }}</td>
-                <td>{{ eda_results["statistical_summary"][column].get("min", "-") }}</td>
-                <td>{{ eda_results["statistical_summary"][column].get("25%", "-") }}</td>
-                <td>{{ eda_results["statistical_summary"][column].get("50%", "-") }}</td>
-                <td>{{ eda_results["statistical_summary"][column].get("75%", "-") }}</td>
-                <td>{{ eda_results["statistical_summary"][column].get("max", "-") }}</td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- DATASET PREVIEW -->
-
-    <div class="box">
-
-        <h2>First 5 Rows</h2>
-
-        {{ preview | safe }}
-
-    </div>
-
-
-    <!-- OBJECTIVE + TARGET -->
-
-    <div class="box">
-
-        <h2>Machine Learning Objective</h2>
-
-        <p>
-            Tell TaskAware what you want to predict or analyze.
-        </p>
-
-        <form action="/analyze-objective" method="POST">
-
-            <input
-                type="hidden"
-                name="filename"
-                value="{{ filename }}"
-            >
-
-            <label for="objective">
-
-                <strong>Objective</strong>
-                <span class="note">(Optional)</span>
-
-            </label>
-
-            <br><br>
-
-            <textarea
-                id="objective"
-                name="objective"
-                placeholder="Example: Predict customer churn"
-            ></textarea>
-
-            <p class="note">
-
-                If you know what you want to predict,
-                describe it here.
-
-                <br>
-
-                <strong>Not sure?</strong>
-                Leave this blank. TaskAware will analyze
-                the dataset and identify possible target
-                variables.
-
+            <p>
+                <strong>Is Dataset Empty:</strong>
+                {{ validation_results["is_empty"] }}
             </p>
 
-            <label for="target">
+            {% if validation_results.get("duplicate_check_status") == "partial" %}
 
-                <strong>Target Variable</strong>
-                <span class="note">(Optional)</span>
+            <p>
+                <strong>Dataset validation completed with limitations.</strong>
+            </p>
 
-            </label>
+            <p>
+                <strong>Duplicate check:</strong>
+                Partial duplicate check completed.
+                Nested object columns were excluded from
+                duplicate hashing.
+                ({{ validation_results.get("duplicate_check_scope") }}.)
+                Duplicate count may not include duplicates
+                distinguishable only through nested object
+                content.
+            </p>
 
-            <br><br>
+            {% if validation_results.get("unsupported_columns_ignored_for_duplicate_check") %}
 
-            <select
-                name="target"
-                id="target"
-            >
+            <p>
+                <strong>Unsupported columns:</strong>
+                {{ validation_results.get("unsupported_columns_ignored_for_duplicate_check") | join(", ") }}
+                (dictionary/list values — excluded from
+                duplicate hashing, reported separately below).
+            </p>
 
-                <option value="">
-                    -- I don't know the target --
-                </option>
+            {% endif %}
 
-                {% for column in column_names %}
+            {% elif validation_results.get("duplicate_check_status") == "skipped" %}
 
-                <option value="{{ column }}">
+            <p>
+                <strong>Duplicate check:</strong>
+                {{ validation_results.get("duplicate_check_warning") }}
+            </p>
+
+            {% endif %}
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- VALIDATION GROUPS -->
+        <!-- ============================================= -->
+
+        <section class="ta-card" aria-label="Dataset quality details">
+
+            <h2>Dataset Quality</h2>
+
+            <h3>Constant Columns</h3>
+
+            {% if validation_results["constant_columns"] %}
+
+            <ul>
+                {% for column in validation_results["constant_columns"] %}
+                <li>{{ column }} <span class="ta-badge ta-badge--bad">constant</span></li>
+                {% endfor %}
+            </ul>
+
+            {% else %}
+
+            <p class="ta-note">
+                No constant columns found.
+            </p>
+
+            {% endif %}
+
+
+            <h3>Possible ID Columns</h3>
+
+            {% if validation_results["possible_id_columns"] %}
+
+            <ul>
+                {% for column in validation_results["possible_id_columns"] %}
+                <li>
                     {{ column }}
-                </option>
+                    <span class="ta-badge ta-badge--warn">identifier</span>
+                    {% if validation_results.get("possible_id_reasons", {}).get(column) %}
+                    <br>
+                    <span class="ta-note">{{ validation_results["possible_id_reasons"][column] | join("; ") }}</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+
+            {% else %}
+
+            <p class="ta-note">
+                No possible ID columns found.
+            </p>
+
+            {% endif %}
+
+
+            <h3>Text Columns</h3>
+
+            {% if validation_results["text_columns"] %}
+
+            <ul>
+                {% for column in validation_results["text_columns"] %}
+                <li>{{ column }} <span class="ta-badge ta-badge--role">text</span></li>
+                {% endfor %}
+            </ul>
+
+            <p class="ta-note">
+                Text columns will be converted to numerical
+                features using TF-IDF.
+            </p>
+
+            {% else %}
+
+            <p class="ta-note">
+                No text columns found.
+            </p>
+
+            {% endif %}
+
+
+            <h3>Date Columns</h3>
+
+            {% if validation_results["date_columns"] %}
+
+            <ul>
+                {% for column in validation_results["date_columns"] %}
+                <li>
+                    {{ column }}
+                    <span class="ta-badge ta-badge--role">date</span>
+                    {% if validation_results.get("date_stats", {}).get(column) %}
+                    <span class="ta-note">
+                        ({{ validation_results["date_stats"][column]["min"] }}
+                        to {{ validation_results["date_stats"][column]["max"] }})
+                    </span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+
+            <p class="ta-note">
+                Date columns will be converted to year, month,
+                day and related components.
+            </p>
+
+            {% else %}
+
+            <p class="ta-note">
+                No date columns found.
+            </p>
+
+            {% endif %}
+
+
+            <h3>Unsupported Columns</h3>
+
+            {% if validation_results["unsupported_columns"] %}
+
+            <ul>
+                {% for column in validation_results["unsupported_columns"] %}
+                <li>{{ column }} <span class="ta-badge ta-badge--bad">unsupported</span></li>
+                {% endfor %}
+            </ul>
+
+            <p class="ta-note">
+                These columns contain unsupported object types
+                (lists, dicts, bytes, etc.) and are excluded from
+                the analysis.
+            </p>
+
+            {% else %}
+
+            <p class="ta-note">
+                No unsupported columns found.
+            </p>
+
+            {% endif %}
+
+
+            {% if _schema %}
+
+            <h3>Group-Aware Validation</h3>
+
+            {% if _schema.get("group_columns") %}
+
+            <p>
+                <strong>Group columns:</strong>
+                {{ _schema.get("group_columns") | join(", ") }}
+            </p>
+
+            {% for detail in _schema.get("group_details", []) %}
+            <p class="ta-note">
+                {{ detail["column"] }}: {{ detail["confidence"] }}
+                confidence — {{ detail["reason"] }}
+            </p>
+            {% endfor %}
+
+            <p class="ta-note">
+                {{ _schema.get("validation_strategy", {}).get("strategy", "") }}.
+                {{ _schema.get("validation_strategy", {}).get("reason", "") }}.
+            </p>
+
+            {% else %}
+
+            <p class="ta-note">
+                No repeated-entity groups detected.
+                {{ _schema.get("validation_strategy", {}).get("strategy", "") }}
+                will be used.
+            </p>
+
+            {% endif %}
+
+            {% if _schema.get("high_cardinality_columns") %}
+
+            <h3>High-Cardinality Columns</h3>
+
+            <ul>
+                {% for column in _schema.get("high_cardinality_columns") %}
+                <li>{{ column }} <span class="ta-badge ta-badge--warn">high cardinality</span></li>
+                {% endfor %}
+            </ul>
+
+            {% endif %}
+
+            {% endif %}
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- GROUP CONFIRMATION -->
+        <!-- ============================================= -->
+
+        {% if _records %}
+        {% set _ambiguous = _records | selectattr("group_candidate") | selectattr("group_confidence", "equalto", "low") | list %}
+
+        {% if _ambiguous %}
+
+        <section class="ta-card ta-card--warning" aria-label="Ambiguous group columns">
+
+            <h2>
+                Possible Group Columns — Confirmation Needed
+            </h2>
+
+            <p>
+                These columns contain repeated values, but
+                TaskAware cannot confirm whether they represent
+                real entities (posts, threads, sources, batches).
+                They are <strong>not</strong> used automatically
+                for group-aware validation.
+            </p>
+
+            <form action="/confirm-groups" method="POST">
+
+                <input
+                    type="hidden"
+                    name="filename"
+                    value="{{ filename }}"
+                >
+
+                {% for record in _ambiguous %}
+
+                <p>
+
+                    <input
+                        type="checkbox"
+                        id="grp-{{ loop.index }}"
+                        name="groups"
+                        value="{{ record['column'] }}"
+                        {% if confirmed_groups and record['column'] in confirmed_groups %}checked{% endif %}
+                    >
+
+                    <label for="grp-{{ loop.index }}">
+                        <strong>{{ record["column"] }}</strong>
+                        — {{ record.get("group_reason", []) | join("; ") }}
+                    </label>
+
+                </p>
 
                 {% endfor %}
 
-            </select>
+                <button type="submit" class="ta-btn">
+                    Use Selected for Group-Aware Validation
+                </button>
 
-            <p class="note">
+            </form>
 
-                If you already know the target, select it.
+            <form action="/confirm-groups" method="POST">
 
-                Otherwise leave it blank and TaskAware will
-                analyze possible targets.
+                <input
+                    type="hidden"
+                    name="filename"
+                    value="{{ filename }}"
+                >
 
+                <button type="submit" class="ta-btn ta-btn--ghost">
+                    Continue Without Group Splitting
+                </button>
+
+            </form>
+
+            {% if confirmed_groups %}
+
+            <p>
+                <span class="ta-badge ta-badge--ok">✓ Confirmed</span>
+                {{ confirmed_groups | join(", ") }}
             </p>
 
-            <br>
+            {% endif %}
 
-            <button type="submit">
-                Analyze Objective and Target
-            </button>
+        </section>
 
-        </form>
-
-    </div>
+        {% endif %}
+        {% endif %}
 
 
-    <br>
+        <!-- ============================================= -->
+        <!-- SEMANTIC SCHEMA CARDS -->
+        <!-- ============================================= -->
 
-    <a href="/upload">
-        ← Upload Another Dataset
-    </a>
+        <section aria-label="Semantic schema analysis">
+
+            <h2>Semantic Schema Analysis</h2>
+
+            <p class="ta-note">
+                Detected semantic type and role for each column,
+                with confidence, recommended transformation and
+                warnings. Text is never classified as an identifier
+                only because its values are highly unique.
+            </p>
+
+            {% if _records %}
+
+            <div class="ta-table-wrap" role="region" aria-label="Schema table" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        Per-column schema: raw type, semantic type,
+                        role, uniqueness, missingness, confidence
+                        and recommended transformation.
+                    </caption>
+
+                    <tr>
+                        <th scope="col">Column</th>
+                        <th scope="col">Raw Type</th>
+                        <th scope="col">Semantic Type</th>
+                        <th scope="col">Role</th>
+                        <th scope="col">Unique</th>
+                        <th scope="col">Missing</th>
+                        <th scope="col">Confidence</th>
+                        <th scope="col">Recommended Transformation</th>
+                    </tr>
+
+                    {% for record in _records %}
+
+                    <tr>
+
+                        <td>{{ record.get("column") }}</td>
+
+                        <td>{{ record.get("raw_dtype", record.get("dtype")) }}</td>
+
+                        <td>
+                            {{ record.get("semantic_type") }}
+                            {% if record.get("semantic_alternative") %}
+                            <br>
+                            <span class="ta-note">
+                                or {{ record["semantic_alternative"]["semantic_type"] }}
+                                ({{ record["semantic_alternative"]["likelihood"] }})
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% set _role = record.get("role") %}
+                            {% if _role in ["identifier", "unsupported", "constant"] %}
+                            <span class="ta-badge ta-badge--bad">{{ _role }}</span>
+                            {% elif _role in ["boolean"] %}
+                            <span class="ta-badge ta-badge--ok">{{ _role }}</span>
+                            {% elif _role in ["text", "datetime"] %}
+                            <span class="ta-badge ta-badge--info">{{ _role }}</span>
+                            {% else %}
+                            <span class="ta-badge ta-badge--role">{{ _role }}</span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {{ record.get("unique_count") }}
+                            ({{ record.get("unique_ratio") }})
+                        </td>
+
+                        <td>
+                            {{ record.get("missing_count") }}
+                            ({{ record.get("missing_ratio") }})
+                        </td>
+
+                        <td>{{ record.get("confidence") }}</td>
+
+                        <td>{{ record.get("recommended_transformation") }}</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+            {% for record in _records %}
+
+            <details>
+
+                <summary>
+                    {{ record.get("column") }}
+                    — {{ record.get("semantic_type") }}
+                    ({{ record.get("role") }})
+                </summary>
+
+                <ul>
+
+                    <li>
+                        <strong>Target suitability:</strong>
+                        {{ record.get("target_suitability", {}).get("recommendation_level", "-") }}
+                        {% if record.get("target_suitability", {}).get("target_problem_type") %}
+                        ({{ record.get("target_suitability", {}).get("target_problem_type") }})
+                        {% endif %}
+                    </li>
+
+                    {% if record.get("boolean_encoding") %}
+                    <li>
+                        <strong>Boolean encoding:</strong>
+                        {{ record.get("boolean_encoding") }}
+                        (likelihood {{ record.get("boolean_likelihood") }})
+                    </li>
+                    {% endif %}
+
+                    {% if record.get("cardinality_warning") %}
+                    <li>
+                        <strong>Cardinality ({{ record.get("cardinality_level") }}):</strong>
+                        {{ record.get("cardinality_warning") }}
+                    </li>
+                    {% endif %}
+
+                    {% if record.get("group_candidate") %}
+                    <li>
+                        <strong>Group candidate:</strong>
+                        {{ record.get("group_confidence") }} confidence,
+                        {{ record.get("repeated_entity_count") }} entities,
+                        up to {{ record.get("max_rows_per_entity") }} rows per entity.
+                        {% if record.get("group_confidence") == "low" %}
+                        Needs explicit confirmation before group-aware use.
+                        {% else %}
+                        Use group-aware validation to avoid leakage.
+                        {% endif %}
+                    </li>
+                    {% endif %}
+
+                    {% if record.get("unsupported_details") %}
+                    <li>
+                        <strong>Unsupported column:</strong>
+                        detected value types:
+                        {{ record.get("unsupported_details", {}).get("detected_value_types") }}.
+                        {{ record.get("unsupported_details", {}).get("reason") }}
+                        Recommended action:
+                        {{ record.get("unsupported_details", {}).get("recommended_action") }}
+                    </li>
+                    {% endif %}
+
+                    {% if record.get("warnings") %}
+                    <li>
+                        <strong>Warnings:</strong>
+                        {{ record.get("warnings") | join("; ") }}
+                    </li>
+                    {% endif %}
+
+                    {% if record.get("evidence") %}
+                    <li>
+                        <strong>Evidence:</strong>
+                        {{ record.get("evidence") | join("; ") }}
+                    </li>
+                    {% endif %}
+
+                </ul>
+
+            </details>
+
+            {% endfor %}
+
+            {% else %}
+
+            <p class="ta-note">
+                Schema details are unavailable for this dataset.
+            </p>
+
+            {% endif %}
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- INITIAL EDA -->
+        <!-- ============================================= -->
+
+        <section class="ta-card" aria-label="Initial exploratory data analysis">
+
+            <h2>Initial Exploratory Data Analysis</h2>
+
+            <div class="ta-grid">
+
+                <div>
+                    <div class="ta-label">Numerical Columns</div>
+                    <div class="ta-stat">{{ eda_results["numerical_columns"] | length }}</div>
+                </div>
+
+                <div>
+                    <div class="ta-label">Categorical Columns</div>
+                    <div class="ta-stat">{{ eda_results["categorical_columns"] | length }}</div>
+                </div>
+
+                <div>
+                    <div class="ta-label">Boolean Columns</div>
+                    <div class="ta-stat">{{ eda_results["boolean_columns"] | length }}</div>
+                </div>
+
+            </div>
+
+            {% if eda_results["statistical_summary"] %}
+
+            <h3>Statistical Summary</h3>
+
+            <div class="ta-table-wrap" role="region" aria-label="Statistical summary" tabindex="0">
+
+                <table>
+
+                    <caption class="ta-note">
+                        Mean, spread and quartiles for numerical columns.
+                    </caption>
+
+                    <tr>
+                        <th scope="col">Column</th>
+                        <th scope="col">Mean</th>
+                        <th scope="col">Std</th>
+                        <th scope="col">Min</th>
+                        <th scope="col">25%</th>
+                        <th scope="col">50%</th>
+                        <th scope="col">75%</th>
+                        <th scope="col">Max</th>
+                    </tr>
+
+                    {% for column in eda_results["numerical_columns"] %}
+
+                    <tr>
+
+                        <td>{{ column }}</td>
+                        <td>{{ eda_results["statistical_summary"][column].get("mean", "-") }}</td>
+                        <td>{{ eda_results["statistical_summary"][column].get("std", "-") }}</td>
+                        <td>{{ eda_results["statistical_summary"][column].get("min", "-") }}</td>
+                        <td>{{ eda_results["statistical_summary"][column].get("25%", "-") }}</td>
+                        <td>{{ eda_results["statistical_summary"][column].get("50%", "-") }}</td>
+                        <td>{{ eda_results["statistical_summary"][column].get("75%", "-") }}</td>
+                        <td>{{ eda_results["statistical_summary"][column].get("max", "-") }}</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </table>
+
+            </div>
+
+            {% endif %}
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- DATASET PREVIEW -->
+        <!-- ============================================= -->
+
+        <section class="ta-card" aria-label="Dataset preview">
+
+            <h2>First 5 Rows</h2>
+
+            <div class="ta-table-wrap" role="region" aria-label="Data preview" tabindex="0">
+                {{ preview | safe }}
+            </div>
+
+        </section>
+
+
+        <!-- ============================================= -->
+        <!-- OBJECTIVE + TARGET -->
+        <!-- ============================================= -->
+
+        <section class="ta-card ta-card--glow" aria-label="Machine learning objective">
+
+            <h2>Machine Learning Objective</h2>
+
+            <p>
+                Tell TaskAware what you want to predict or analyze.
+            </p>
+
+            <form action="/analyze-objective" method="POST">
+
+                <input
+                    type="hidden"
+                    name="filename"
+                    value="{{ filename }}"
+                >
+
+                <label for="objective">
+
+                    <strong>Objective</strong>
+                    <span class="ta-note">(Optional)</span>
+
+                </label>
+
+                <br><br>
+
+                <textarea
+                    id="objective"
+                    name="objective"
+                    placeholder="Example: Predict customer churn"
+                    aria-describedby="objective-help"
+                ></textarea>
+
+                <p class="ta-note" id="objective-help">
+
+                    If you know what you want to predict,
+                    describe it here.
+
+                    <br>
+
+                    <strong>Not sure?</strong>
+                    Leave this blank. TaskAware will analyze
+                    the dataset and identify possible target
+                    variables.
+
+                </p>
+
+                <label for="target">
+
+                    <strong>Target Variable</strong>
+                    <span class="ta-note">(Optional)</span>
+
+                </label>
+
+                <br><br>
+
+                <select
+                    name="target"
+                    id="target"
+                >
+
+                    <option value="">
+                        -- I don't know the target --
+                    </option>
+
+                    {% for column in column_names %}
+
+                    <option value="{{ column }}">
+                        {{ column }}
+                    </option>
+
+                    {% endfor %}
+
+                </select>
+
+                <p class="ta-note">
+
+                    If you already know the target, select it.
+
+                    Otherwise leave it blank and TaskAware will
+                    analyze possible targets.
+
+                </p>
+
+                <br>
+
+                <button type="submit" class="ta-btn">
+                    Analyze Objective and Target
+                </button>
+
+            </form>
+
+        </section>
+
+    </main>
+
+
+    <footer>
+
+        <br>
+
+        <a href="/upload">
+            ← Upload Another Dataset
+        </a>
+
+    </footer>
 
 </body>
 

@@ -125,6 +125,8 @@ def _format_selection(
 
     reason_parts = []
 
+    primary_metric = None
+
     if problem_type == "Classification":
 
         best_score = best.get("cv_mean")
@@ -132,12 +134,34 @@ def _format_selection(
         if best_score is None:
             best_score = best.get("f1")
 
-        reason_parts.append(
-            f"{best['name']} achieved the strongest "
-            f"cross-validated F1 score "
-            f"({best_score:.4f}) among the evaluated "
-            "models."
+        counts = best.get("class_counts") or {}
+        total = sum(counts.values()) or 0
+        minority_share = (
+            min(counts.values()) / total if total else 1.0
         )
+
+        if minority_share < 0.2 and best.get("n_classes", 2) == 2:
+            primary_metric = "macro_f1"
+            reason_parts.append(
+                f"{best['name']} achieved the strongest "
+                f"cross-validated F1 score "
+                f"({best_score:.4f}) among the evaluated "
+                "models."
+            )
+            reason_parts.append(
+                "Primary selection metric: Macro-F1. The "
+                "minority class is small, so Macro-F1 gives "
+                "each class equal importance. The model was "
+                "not selected on accuracy alone."
+            )
+        else:
+            primary_metric = "cv_f1_macro"
+            reason_parts.append(
+                f"{best['name']} achieved the strongest "
+                f"cross-validated F1 score "
+                f"({best_score:.4f}) among the evaluated "
+                "models."
+            )
 
         test_f1 = best.get("f1")
 
@@ -149,6 +173,8 @@ def _format_selection(
             )
 
     else:
+
+        primary_metric = "cv_r2"
 
         best_score = best.get("cv_mean")
 
@@ -173,6 +199,7 @@ def _format_selection(
 
     return {
         "name": best["name"],
+        "primary_metric": primary_metric,
         "metrics": {
             key: value
             for key, value in best.items()
