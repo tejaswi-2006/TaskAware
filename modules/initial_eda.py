@@ -8,7 +8,21 @@ information is consistent across the application.
 import numpy as np
 import pandas as pd
 
+from modules.data_validator import (
+    find_unhashable_columns,
+    safe_duplicate_check,
+)
 from modules.schema_analyzer import analyze_schema
+
+
+def _eda_duplicate_rows(df):
+    """
+    Duplicate-row count that never crashes on nested or
+    unhashable values (uses the safe partial check).
+    """
+    return int(
+        safe_duplicate_check(df)["duplicate_rows_detected"]
+    )
 
 
 def perform_initial_eda(df, target_column=None):
@@ -181,7 +195,8 @@ def perform_initial_eda(df, target_column=None):
         "text_summary": text_summary,
         "date_summary": date_summary,
         "missing_values": df.isnull().sum().to_dict(),
-        "duplicate_rows": int(df.duplicated().sum()),
+        "duplicate_rows": _eda_duplicate_rows(df),
+        "duplicate_check": safe_duplicate_check(df),
         "schema": schema,
     }
 

@@ -70,11 +70,35 @@ def validate_dataset(df, target_column=None):
                 "missing": int(df[column].isnull().sum()),
             }
 
+    duplicate_check = safe_duplicate_check(df)
+
     validation_results = {
         "is_empty": df.empty,
         "rows": rows,
         "columns": cols,
-        "duplicate_rows": int(df.duplicated().sum()),
+        "duplicate_rows": duplicate_check[
+            "duplicate_rows_detected"
+        ],
+        "duplicate_check_status": duplicate_check[
+            "duplicate_check_status"
+        ],
+        "duplicate_check_scope": duplicate_check[
+            "duplicate_check_scope"
+        ],
+        "duplicate_check_warning": duplicate_check[
+            "duplicate_check_warning"
+        ],
+        "unsupported_columns_ignored_for_duplicate_check": (
+            duplicate_check[
+                "unsupported_columns_ignored_for_duplicate_check"
+            ]
+        ),
+        "duplicate_rows_detected": duplicate_check[
+            "duplicate_rows_detected"
+        ],
+        "duplicate_check_complete": duplicate_check[
+            "duplicate_check_complete"
+        ],
         "missing_values": df.isnull().sum().to_dict(),
         "total_missing": int(df.isnull().sum().sum()),
         "duplicate_column_names": duplicate_column_names,
@@ -98,6 +122,147 @@ def validate_dataset(df, target_column=None):
     }
 
     return validation_results
+
+
+def find_unhashable_columns(df):
+    """
+    Return columns whose values cannot be hashed (dicts,
+    lists, sets, nested JSON, mixed unhashable objects).
+
+    Each column is probed individually so that one nested
+    column does not hide the status of the others.
+    """
+    bad = []
+
+    for column in df.columns:
+        series = df[column]
+
+        # Numeric, boolean and datetime dtypes are always
+        # hashable; only object columns can hide nested
+        # values. Probing with hash() directly is
+        # deterministic, unlike Series.duplicated(),
+        # which silently tolerates some unhashables.
+        if series.dtype != object:
+            continue
+
+        try:
+            series.map(hash)
+        except Exception:
+            bad.append(column)
+
+    return bad
+
+
+def safe_duplicate_check(df, exclude_columns=None):
+    """
+    Duplicate-row check that never crashes on nested or
+    unhashable values.
+
+    Strategy
+    --------
+    - Run the normal check when all values are hashable.
+    - Otherwise exclude only the unhashable columns from
+      duplicate hashing and mark the check as partial.
+    - The original data is never modified.
+
+    Returns metadata with duplicate_check_status
+    (complete/partial/skipped), scope, warning, ignored
+    columns, detected count and completeness flag.
+    """
+    excluded = list(exclude_columns or [])
+
+    auto = find_unhashable_columns(df)
+
+    for column in auto:
+        if column not in excluded:
+            excluded.append(column)
+
+    usable = [
+        column
+        for column in df.columns
+        if column not in excluded
+    ]
+
+    if len(df.columns) == 0 or len(df) == 0:
+        return {
+            "duplicate_rows_detected": 0,
+            "duplicate_check_status": "complete",
+            "duplicate_check_scope": "all columns",
+            "duplicate_check_warning": None,
+            "unsupported_columns_ignored_for_duplicate_check": [],
+            "duplicate_check_complete": True,
+        }
+
+    if not usable:
+        return {
+            "duplicate_rows_detected": 0,
+            "duplicate_check_status": "skipped",
+            "duplicate_check_scope": (
+                "no hashable columns available"
+            ),
+            "duplicate_check_warning": (
+                "Duplicate check could not run because "
+                "every column contains nested or unhashable "
+                "values."
+            ),
+            "unsupported_columns_ignored_for_duplicate_check": (
+                [str(c) for c in excluded]
+            ),
+            "duplicate_check_complete": False,
+        }
+
+    try:
+        detected = int(
+            df[usable].duplicated().sum()
+        )
+    except Exception as exc:
+        return {
+            "duplicate_rows_detected": 0,
+            "duplicate_check_status": "skipped",
+            "duplicate_check_scope": (
+                "duplicate hashing failed"
+            ),
+            "duplicate_check_warning": (
+                "Duplicate check could not run safely: "
+                f"{str(exc)[:160]}"
+            ),
+            "unsupported_columns_ignored_for_duplicate_check": (
+                [str(c) for c in excluded]
+            ),
+            "duplicate_check_complete": False,
+        }
+
+    if excluded:
+        names = ", ".join(str(c) for c in excluded)
+
+        return {
+            "duplicate_rows_detected": detected,
+            "duplicate_check_status": "partial",
+            "duplicate_check_scope": (
+                f"all columns except {names}"
+            ),
+            "duplicate_check_warning": (
+                "Partial duplicate check completed. Nested "
+                f"object columns ({names}) were excluded "
+                "from duplicate hashing. The duplicate "
+                "count may not include duplicates "
+                "distinguishable only through nested object "
+                "content."
+            ),
+            "unsupported_columns_ignored_for_duplicate_check": (
+                [str(c) for c in excluded]
+            ),
+            "duplicate_check_complete": False,
+        }
+
+    return {
+        "duplicate_rows_detected": detected,
+        "duplicate_check_status": "complete",
+        "duplicate_check_scope": "all columns",
+        "duplicate_check_warning": None,
+        "unsupported_columns_ignored_for_duplicate_check": [],
+        "duplicate_check_complete": True,
+    }
 
 
 def pd_to_datetime_safe(series):

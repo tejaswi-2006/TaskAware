@@ -723,7 +723,18 @@ def _keep_numeric_role(series, column_name, unique_count):
         for token in tokens
     )
 
+    name_measure = any(
+        token in _NUMERIC_MEASUREMENT_TOKENS
+        for token in tokens
+    )
+
     if name_ratio:
+        return True
+
+    # A measurement-named numeric column (fee, age, hours)
+    # keeps the numeric role even with few distinct values;
+    # low cardinality alone must not force categorical.
+    if name_measure and not name_count:
         return True
 
     if name_count and unique_count > 2:
@@ -743,6 +754,40 @@ def _keep_numeric_role(series, column_name, unique_count):
         return bool(is_integer and non_negative)
 
     return False
+
+
+def _semantic_alternative(semantic_type, likelihood):
+    """
+    Second-best semantic interpretation, so that ambiguous
+    columns expose their alternative (e.g. a tiered fee
+    read as measurement with categorical as alternative).
+    """
+    if not isinstance(likelihood, dict):
+        return None
+
+    ranked = sorted(
+        (
+            (str(key), float(value))
+            for key, value in likelihood.items()
+            if str(key) != str(semantic_type)
+        ),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+
+    if not ranked:
+        return None
+
+    name, score = ranked[0]
+
+    return {
+        "semantic_type": name,
+        "likelihood": round(score, 2),
+        "reason": (
+            "Alternative interpretation with the next "
+            "highest likelihood."
+        ),
+    }
 
 
 # ------------------------------------------------------------
@@ -992,12 +1037,27 @@ def _target_suitability(record, unique_count, missing_ratio, n_rows):
 # GROUP DETECTION
 # ------------------------------------------------------------
 
-_GROUP_NAME_TOKENS = {
+_ENTITY_NAME_TOKENS = {
     "customer", "patient", "user", "account", "session",
-    "household", "device", "transaction", "entity", "member",
-    "employee", "subscriber", "student", "store", "branch",
-    "order", "invoice",
+    "household", "transaction",
 }
+
+_NON_ENTITY_TOKENS = {
+    "device", "devices", "region", "regions", "gender",
+    "sex", "subscription", "subscriptions", "payment",
+    "payments", "method", "methods", "genre", "genres",
+    "category", "categories", "type", "types", "status",
+    "tier", "tiers", "plan", "plans", "country",
+    "countries", "city", "cities", "language", "languages",
+    "currency", "favorite", "favourite",
+}
+
+# A group candidate needs enough distinct entities for
+# group-aware splitting to be meaningful.
+_MIN_GROUP_ENTITIES = 5
+
+# No single entity may dominate the dataset.
+_MAX_GROUP_SHARE = 0.9
 
 
 def _detect_group(
@@ -1018,8 +1078,13 @@ def _detect_group(
     """
     tokens = _normalize_name(column_name).split()
 
-    name_suggests_group = any(
-        token in _GROUP_NAME_TOKENS
+    name_suggests_entity = any(
+        token in _ENTITY_NAME_TOKENS
+        for token in tokens
+    )
+
+    name_suggests_attribute = any(
+        token in _NON_ENTITY_TOKENS
         for token in tokens
     )
 
@@ -1040,10 +1105,26 @@ def _detect_group(
     if unique_ratio >= 0.95:
         return 0.0, False, None, 0, 1, [], None
 
+    # Ordinary categorical attributes (device, region,
+    # gender, ...) are predictive features, never entity
+    # groups, even when their values repeat.
+    if name_suggests_attribute:
+        return 0.0, False, None, 0, 0, [], None
+
+    # Too few distinct values: not enough entities for
+    # meaningful group-aware splitting.
+    if unique_count < _MIN_GROUP_ENTITIES:
+        return 0.0, False, None, 0, 0, [], None
+
+    # One entity covering almost the whole dataset cannot
+    # define a useful split.
+    if n_rows > 0 and (max_rows_per_entity / n_rows) >= _MAX_GROUP_SHARE:
+        return 0.0, False, None, 0, 0, [], None
+
     reason = []
     warning = None
 
-    if name_suggests_group and has_repeats:
+    if name_suggests_entity and has_repeats:
 
         return (
             0.9,
@@ -1052,7 +1133,8 @@ def _detect_group(
             repeated_entity_count,
             max_rows_per_entity,
             [
-                "The column name suggests an entity and "
+                "The column name suggests a repeated entity "
+                f"({unique_count} distinct values) and "
                 "values repeat across rows."
             ],
             (
@@ -1282,12 +1364,13 @@ def _enrich_record(
 
     Preserves all existing keys and appends:
         raw_dtype, semantic_type, semantic_type_likelihood,
-        confidence, text_likelihood, date_likelihood,
-        identifier_likelihood, boolean_likelihood,
-        boolean_encoding, cardinality_level,
-        cardinality_warning, recommended_transformation,
-        target_suitability, group_candidate, group_likelihood,
-        group_confidence, repeated_entity_count,
+        semantic_alternative, confidence, text_likelihood,
+        date_likelihood, identifier_likelihood,
+        boolean_likelihood, boolean_encoding,
+        cardinality_level, cardinality_warning,
+        recommended_transformation, target_suitability,
+        group_candidate, group_likelihood, group_confidence,
+        group_reason, repeated_entity_count,
         max_rows_per_entity, warnings, evidence,
         unsupported_details.
     """
@@ -1456,6 +1539,9 @@ def _enrich_record(
     enriched["semantic_type"] = semantic_type
     enriched["semantic_type_likelihood"] = _native(
         semantic_likelihood
+    )
+    enriched["semantic_alternative"] = _native(
+        _semantic_alternative(semantic_type, semantic_likelihood)
     )
     enriched["confidence"] = _native(confidence)
     enriched["text_likelihood"] = _native(text_likelihood)
@@ -2046,6 +2132,26 @@ def analyze_schema(df, target_column=None):
         in ("high", "medium")
     ]
 
+    group_details = []
+
+    for col in group_columns:
+        record = _record_for(columns, col)
+
+        group_details.append({
+            "column": col,
+            "confidence": record.get("group_confidence"),
+            "likelihood": record.get("group_likelihood"),
+            "reason": "; ".join(
+                record.get("group_reason", [])
+            ),
+            "repeated_entity_count": record.get(
+                "repeated_entity_count"
+            ),
+            "max_rows_per_entity": record.get(
+                "max_rows_per_entity"
+            ),
+        })
+
     semantic_by_type = {}
 
     for record in columns:
@@ -2109,6 +2215,7 @@ def analyze_schema(df, target_column=None):
         "feature_columns": feature_columns,
         "removed_columns": removed_columns,
         "group_columns": group_columns,
+        "group_details": group_details,
         "semantic_by_type": semantic_by_type,
         "high_cardinality_columns": high_cardinality_columns,
         "validation_strategy": validation_strategy,

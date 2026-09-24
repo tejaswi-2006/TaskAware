@@ -158,6 +158,16 @@
             Test size: {{ training["X_test_shape"][0] }}
             &nbsp;|&nbsp;
             5-fold cross-validation
+            {% if training.get("n_transformed_features") %}
+            &nbsp;|&nbsp;
+            Final model features:
+            {{ training["n_transformed_features"] }}
+            {% endif %}
+            {% if training.get("used_group_split") %}
+            &nbsp;|&nbsp;
+            Group-aware split on
+            {{ training["used_group_split"] }}
+            {% endif %}
         </p>
 
         {% if problem_type == "Classification" %}

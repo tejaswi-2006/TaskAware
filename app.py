@@ -11,7 +11,10 @@ from functools import wraps
 # ============================================================
 
 from modules.data_loader import load_dataset, allowed_file
-from modules.data_validator import validate_dataset
+from modules.data_validator import (
+    safe_duplicate_check,
+    validate_dataset,
+)
 from modules.initial_eda import perform_initial_eda
 from modules.objective_target import analyze_target_candidates
 from modules.problem_type_detector import detect_problem_type
@@ -666,7 +669,7 @@ def upload_dataset():
     )
 
     duplicate_rows = int(
-        df.duplicated().sum()
+        safe_duplicate_check(df)["duplicate_rows_detected"]
     )
 
     preview = df.head().to_html(
@@ -1554,22 +1557,29 @@ def preprocessing():
 
         selection = perform_feature_selection(
             df,
-            prep["roles"]["feature_columns"],
+            prep["schema"]["feature_columns"],
             target_column=(
                 prep["target_column"]
-            )
+            ),
+            schema=prep["schema"],
+            transformed_feature_names=(
+                prep["preview"].get("feature_names", [])
+            ),
         )
 
     except Exception as e:
 
         selection = {
-            "feature_count": 0,
+            "feature_count": len(
+                prep["schema"].get("feature_columns", [])
+            ),
             "high_correlation": [],
             "high_corr_count": 0,
             "low_variance": [],
             "low_variance_count": 0,
             "leakage_candidates": [],
-            "leakage_count": 0
+            "leakage_count": 0,
+            "selection_error": str(e)[:200],
         }
 
     # --------------------------------------------------------

@@ -411,6 +411,115 @@
 
         </ul>
 
+        {% if report["prep"].get("feature_accounting") %}
+        {% set fa = report["prep"]["feature_accounting"] %}
+
+        <h3>
+            Feature Accounting
+        </h3>
+
+        <table>
+
+            <tr>
+                <th>Stage</th>
+                <th>Count</th>
+            </tr>
+
+            <tr>
+                <td>Raw feature columns</td>
+                <td>{{ fa["raw_feature_columns"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Identifier columns removed</td>
+                <td>{{ fa["identifier_columns_removed"] | length }}</td>
+            </tr>
+
+            <tr>
+                <td>Unsupported columns excluded</td>
+                <td>{{ fa["unsupported_columns_excluded"] | length }}</td>
+            </tr>
+
+            <tr>
+                <td>Raw usable feature columns</td>
+                <td>{{ fa["raw_usable_count"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Generated transformed features</td>
+                <td>{{ fa["generated_transformed_features"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Feature selection applied</td>
+                <td>
+                    {% if fa["feature_selection_applied"] %}
+                    Yes
+                    {% else %}
+                    No — {{ fa["selection_note"] }}
+                    {% endif %}
+                </td>
+            </tr>
+
+            <tr>
+                <td>Features removed by selection</td>
+                <td>{{ fa["features_removed_by_selection"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Final model features</td>
+                <td>{{ fa["final_model_features"] }}</td>
+            </tr>
+
+        </table>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- 4b. GROUP VALIDATION -->
+    <!-- ================================================= -->
+
+    <h2>
+        Group Validation
+    </h2>
+
+    <div class="card">
+
+        <p>
+            <strong>Group column:</strong>
+            {{ report["group_validation"]["group_column"] or "none" }}
+        </p>
+
+        <p>
+            <strong>Strategy:</strong>
+            {{ report["group_validation"]["strategy"] }}
+        </p>
+
+        <p>
+            <strong>Reason:</strong>
+            {{ report["group_validation"]["reason"] }}
+        </p>
+
+        <p>
+            <strong>Confidence:</strong>
+            {{ report["group_validation"]["confidence"] or "n/a" }}
+        </p>
+
+        {% if report["model_results"]
+            and report["model_results"].get("used_group_split") %}
+
+        <p>
+            <strong>Applied split:</strong>
+            group-aware split on
+            {{ report["model_results"]["used_group_split"] }}
+            (entities kept whole across train and test).
+        </p>
+
+        {% endif %}
+
     </div>
 
 
@@ -543,6 +652,21 @@
         </p>
         {% endif %}
 
+        {% if mr.get("n_transformed_features") %}
+        <p>
+            <strong>Final model features:</strong>
+            {{ mr["n_transformed_features"] }}
+        </p>
+        {% endif %}
+
+        {% if mr.get("used_group_split") %}
+        <p>
+            <strong>Applied split:</strong>
+            group-aware split on
+            {{ mr["used_group_split"] }}
+        </p>
+        {% endif %}
+
         {% endif %}
 
         <h3>
@@ -664,9 +788,28 @@
                 {{ report["model_results"]["best_model"].get("name") }}
             </strong>
             was selected based on cross-validated
-            evaluation. Interpretability was provided
-            through SHAP feature contributions, and the
-            results were explained in plain language.
+            evaluation.
+            {% set _method = report["model_results"].get("explanation_method") %}
+            {% if _method == "SHAP" %}
+            Interpretability was provided through SHAP
+            feature contributions,
+            {% elif _method == "Model Coefficients" %}
+            Interpretability was provided through model
+            coefficients (not SHAP),
+            {% elif _method == "Feature Importance" %}
+            Interpretability was provided through
+            model-based feature importance (not SHAP),
+            {% elif _method == "Permutation Importance" %}
+            Interpretability was provided through
+            permutation importance (not SHAP),
+            {% elif _method %}
+            Interpretability was provided through
+            {{ _method }},
+            {% else %}
+            Interpretability information was limited,
+            {% endif %}
+            and the results were explained in plain
+            language.
         </p>
 
         {% endif %}

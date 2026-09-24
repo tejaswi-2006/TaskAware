@@ -14,6 +14,8 @@ from sklearn.model_selection import (
     train_test_split,
     StratifiedKFold,
     KFold,
+    GroupKFold,
+    GroupShuffleSplit,
     TimeSeriesSplit,
     cross_val_score,
 )
@@ -21,6 +23,7 @@ from sklearn.model_selection import (
 from modules.schema_analyzer import analyze_schema
 from modules.preprocessing import (
     build_preprocessing_pipeline,
+    feature_accounting,
     prepare_target,
 )
 from modules.model_recommender import recommend_models
@@ -81,6 +84,33 @@ def _make_cv(problem_type, X, y=None):
     )
 
 
+def _group_values(groups):
+    """
+    Return group labels as an array, or None when groups
+    are unusable for splitting.
+    """
+    if groups is None:
+        return None
+
+    try:
+        values = np.asarray(groups)
+    except Exception:
+        return None
+
+    if len(values) == 0:
+        return None
+
+    try:
+        n_groups = len(pd.unique(values))
+    except Exception:
+        return None
+
+    if n_groups < 2:
+        return None
+
+    return values
+
+
 def cross_validate_model(
     preprocessor,
     X,
@@ -88,24 +118,36 @@ def cross_validate_model(
     model_config,
     problem_type,
     n_splits=5,
+    groups=None,
 ):
     """
     Run k-fold cross-validation using the full pipeline
     (preprocessing + model). Preprocessing is refit inside
     every fold, which keeps the evaluation leakage-free.
+
+    When repeated-entity groups are provided, GroupKFold
+    keeps each entity within a single fold.
     """
-    if problem_type == "Classification":
+    group_values = _group_values(groups)
+
+    if group_values is not None and len(
+        pd.unique(group_values)
+    ) >= n_splits:
+        fold = GroupKFold(n_splits=n_splits)
+    elif problem_type == "Classification":
         fold = StratifiedKFold(
             n_splits=n_splits,
             shuffle=True,
             random_state=42,
         )
+        group_values = None
     else:
         fold = KFold(
             n_splits=n_splits,
             shuffle=True,
             random_state=42,
         )
+        group_values = None
 
     scoring = (
         "f1_macro"
@@ -132,14 +174,25 @@ def cross_validate_model(
             _warnings.simplefilter("ignore", FutureWarning)
             _warnings.simplefilter("ignore", UserWarning)
 
-            scores = cross_val_score(
-                pipeline,
-                X,
-                y,
-                cv=fold,
-                scoring=scoring,
-                n_jobs=-1,
-            )
+            if group_values is not None:
+                scores = cross_val_score(
+                    pipeline,
+                    X,
+                    y,
+                    groups=group_values,
+                    cv=fold,
+                    scoring=scoring,
+                    n_jobs=-1,
+                )
+            else:
+                scores = cross_val_score(
+                    pipeline,
+                    X,
+                    y,
+                    cv=fold,
+                    scoring=scoring,
+                    n_jobs=-1,
+                )
 
         return {
             "mean": round(
@@ -346,12 +399,54 @@ def _validate_target(df, target_column):
 # SPLIT STRATEGY
 # ============================================================
 
-def _split_data(X, y, problem_type, schema, test_size=0.2):
+def _split_groups(df, X, schema):
+    """
+    Return the group labels aligned with X, or None when no
+    usable group column exists. The group column itself is
+    usually excluded from features, so labels come from df.
+    """
+    group_columns = schema.get("group_columns") or []
+
+    if not group_columns:
+        return None, None
+
+    column = group_columns[0]
+
+    if column not in df.columns:
+        return None, None
+
+    try:
+        groups = df.loc[X.index, column]
+    except Exception:
+        return None, None
+
+    if _group_values(groups) is None:
+        return None, None
+
+    return groups, column
+
+
+def _split_data(
+    X,
+    y,
+    problem_type,
+    schema,
+    test_size=0.2,
+    groups=None,
+    group_column=None,
+):
     """
     Choose the train/test split strategy.
 
     For time-dependent data, a chronological split is used
     so that the model never sees future data during training.
+
+    When repeated-entity groups are provided, whole entities
+    are kept within train or test (GroupShuffleSplit) so
+    that related records never leak across the split.
+
+    Returns (splits, info) where info carries
+    {"chronological": bool, "group": column or None}.
     """
     if schema["is_time_series"] and schema["time_column"]:
 
@@ -385,8 +480,37 @@ def _split_data(X, y, problem_type, schema, test_size=0.2):
                     X.iloc[train_idx],
                     X.iloc[test_idx],
                     y.iloc[train_idx],
-                    y.iloc[test_idx],
-                ), True
+                    y.iloc[train_idx],
+                ), {
+                    "chronological": True,
+                    "group": None,
+                }
+
+    group_values = _group_values(groups)
+
+    if group_values is not None:
+        try:
+            splitter = GroupShuffleSplit(
+                n_splits=1,
+                test_size=test_size,
+                random_state=42,
+            )
+
+            train_idx, test_idx = next(
+                splitter.split(X, y, groups=group_values)
+            )
+
+            return (
+                X.iloc[train_idx],
+                X.iloc[test_idx],
+                y.iloc[train_idx],
+                y.iloc[test_idx],
+            ), {
+                "chronological": False,
+                "group": group_column,
+            }
+        except Exception:
+            pass
 
     if problem_type == "Classification":
         X_tr, X_te, y_tr, y_te = train_test_split(
@@ -402,7 +526,10 @@ def _split_data(X, y, problem_type, schema, test_size=0.2):
             random_state=42,
         )
 
-    return (X_tr, X_te, y_tr, y_te), False
+    return (X_tr, X_te, y_tr, y_te), {
+        "chronological": False,
+        "group": None,
+    }
 
 
 # ============================================================
@@ -462,18 +589,31 @@ def run_classification(
     target_info = roles_result["target_info"]
     schema = roles_result["schema"]
 
-    (X_train, X_test, y_train, y_test), used_chrono = _split_data(
-        X, y, "Classification", schema, test_size,
+    split_groups, split_group_column = _split_groups(
+        df, X, schema
     )
+
+    (X_train, X_test, y_train, y_test), split_info = _split_data(
+        X, y, "Classification", schema, test_size,
+        groups=split_groups,
+        group_column=split_group_column,
+    )
+
+    if split_groups is not None:
+        cv_groups = split_groups.loc[X_train.index]
+    else:
+        cv_groups = None
 
     n_classes = len(np.unique(y))
 
     preprocessor = _build_preprocessor(schema)
 
     # Validate the preprocessor actually produces features
-    _validate_transformed_features(
+    transformed_preview = _validate_transformed_features(
         preprocessor, X_train
     )
+
+    n_transformed = int(transformed_preview.shape[1])
 
     models = recommend_models(
         schema,
@@ -490,6 +630,7 @@ def run_classification(
             y_train,
             config,
             "Classification",
+            groups=cv_groups,
         )
 
         pipeline, y_pred, metrics = train_and_evaluate(
@@ -522,7 +663,15 @@ def run_classification(
         "n_classes": n_classes,
         "results": results,
         "models": models,
-        "used_chronological_split": used_chrono,
+        "used_chronological_split": split_info["chronological"],
+        "used_group_split": split_info["group"],
+        "n_transformed_features": n_transformed,
+        "feature_accounting": feature_accounting(
+            df,
+            target_column,
+            schema,
+            {"features_after": n_transformed},
+        ),
         "X_train": X_train,
         "y_train": y_train,
         "X_test": X_test,
@@ -553,15 +702,28 @@ def run_regression(
     target_info = roles_result["target_info"]
     schema = roles_result["schema"]
 
-    (X_train, X_test, y_train, y_test), used_chrono = _split_data(
-        X, y, "Regression", schema, test_size,
+    split_groups, split_group_column = _split_groups(
+        df, X, schema
     )
+
+    (X_train, X_test, y_train, y_test), split_info = _split_data(
+        X, y, "Regression", schema, test_size,
+        groups=split_groups,
+        group_column=split_group_column,
+    )
+
+    if split_groups is not None:
+        cv_groups = split_groups.loc[X_train.index]
+    else:
+        cv_groups = None
 
     preprocessor = _build_preprocessor(schema)
 
-    _validate_transformed_features(
+    transformed_preview = _validate_transformed_features(
         preprocessor, X_train
     )
+
+    n_transformed = int(transformed_preview.shape[1])
 
     models = recommend_models(
         schema,
@@ -578,6 +740,7 @@ def run_regression(
             y_train,
             config,
             "Regression",
+            groups=cv_groups,
         )
 
         pipeline, y_pred, metrics = train_and_evaluate(
@@ -608,7 +771,15 @@ def run_regression(
         "X_test_shape": X_test.shape,
         "results": results,
         "models": models,
-        "used_chronological_split": used_chrono,
+        "used_chronological_split": split_info["chronological"],
+        "used_group_split": split_info["group"],
+        "n_transformed_features": n_transformed,
+        "feature_accounting": feature_accounting(
+            df,
+            target_column,
+            schema,
+            {"features_after": n_transformed},
+        ),
         "X_train": X_train,
         "y_train": y_train,
         "X_test": X_test,
@@ -694,8 +865,14 @@ def train_named_model(
     target_info = roles_result["target_info"]
     schema = roles_result["schema"]
 
-    (X_train, X_test, y_train, y_test), _ = _split_data(
+    split_groups, split_group_column = _split_groups(
+        df, X, schema
+    )
+
+    (X_train, X_test, y_train, y_test), split_info = _split_data(
         X, y, problem_type, schema, test_size,
+        groups=split_groups,
+        group_column=split_group_column,
     )
 
     models = recommend_models(
@@ -738,4 +915,6 @@ def train_named_model(
         "schema": schema,
         "model_name": config["name"],
         "preprocessor": preprocessor,
+        "used_chronological_split": split_info["chronological"],
+        "used_group_split": split_info["group"],
     }

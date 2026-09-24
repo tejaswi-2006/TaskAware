@@ -566,5 +566,267 @@ class TestAIExplanation(unittest.TestCase):
         )
 
 
+def make_group_data():
+    return pd.DataFrame({
+        "account_id": [f"ACC-{i % 10:03d}" for i in range(200)],
+        "device": ["TV", "Mobile", "Tablet", "Laptop", "Desktop"] * 40,
+        "region": ["A", "B", "C", "D", "E", "F"] * 33 + ["A", "B"],
+        "gender": ["M", "F", "X"] * 66 + ["M", "F"],
+        "x": list(range(200)),
+        "y": [0, 1] * 100,
+    })
+
+
+class TestSafeDuplicates(unittest.TestCase):
+
+    def test_dict_column_partial(self):
+        df = pd.DataFrame({
+            "id": ["R0", "R1", "R2", "R0"],
+            "payload": [{"a": 1}, {"b": [1, 2]}, {"a": 1}, {"a": 1}],
+            "x": [1.0, 2.0, 3.0, 1.0],
+        })
+        validation = validate_dataset(df)
+        self.assertEqual(
+            validation["duplicate_check_status"], "partial"
+        )
+        self.assertFalse(validation["duplicate_check_complete"])
+        self.assertIn(
+            "payload",
+            validation[
+                "unsupported_columns_ignored_for_duplicate_check"
+            ],
+        )
+        self.assertEqual(validation["duplicate_rows"], 1)
+        self.assertIn("payload", validation["unsupported_columns"])
+
+    def test_list_and_mixed_columns(self):
+        df = pd.DataFrame({
+            "tags": [["a"], ["b"], ["a"]],
+            "y": [0, 1, 0],
+        })
+        validation = validate_dataset(df)
+        self.assertEqual(
+            validation["duplicate_check_status"], "partial"
+        )
+        self.assertEqual(validation["duplicate_rows"], 1)
+
+    def test_normal_dataset_complete(self):
+        df = pd.DataFrame({
+            "a": [1, 2, 1, 3],
+            "b": ["x", "y", "x", "z"],
+        })
+        validation = validate_dataset(df)
+        self.assertEqual(
+            validation["duplicate_check_status"], "complete"
+        )
+        self.assertTrue(validation["duplicate_check_complete"])
+        self.assertEqual(validation["duplicate_rows"], 1)
+
+
+class TestGroupSelection(unittest.TestCase):
+
+    def test_ordinary_attributes_not_groups(self):
+        df = make_group_data()
+        schema = analyze_schema(df, target_column="y")
+
+        for column in ("device", "region", "gender"):
+            record = next(
+                r for r in schema["columns"]
+                if r["column"] == column
+            )
+            self.assertFalse(
+                record["group_candidate"],
+                column,
+            )
+
+        self.assertIn("account_id", schema["group_columns"])
+        self.assertNotIn("device", schema["group_columns"])
+
+    def test_unique_id_not_group(self):
+        df = pd.DataFrame({
+            "customer_id": [f"C{i:04d}" for i in range(100)],
+            "x": list(range(100)),
+            "y": [0, 1] * 50,
+        })
+        schema = analyze_schema(df, target_column="y")
+        self.assertIn("customer_id", schema["id_columns"])
+        self.assertNotIn("customer_id", schema["group_columns"])
+
+    def test_entity_ids_trigger_group_strategy(self):
+        df = pd.DataFrame({
+            "patient_id": [f"P{i % 12:03d}" for i in range(120)],
+            "v": list(range(120)),
+            "y": [0, 1] * 60,
+        })
+        schema = analyze_schema(df, target_column="y")
+        self.assertIn("patient_id", schema["group_columns"])
+        self.assertIn(
+            "Group",
+            schema["validation_strategy"]["strategy"],
+        )
+        self.assertEqual(
+            schema["group_details"][0]["column"], "patient_id"
+        )
+
+    def test_group_split_keeps_entities_whole(self):
+        df = make_group_data()
+        training = train_models(df, "y", "Classification")
+        self.assertEqual(
+            training.get("used_group_split"), "account_id"
+        )
+        train_groups = set(
+            df.loc[training["X_train"].index, "account_id"]
+        )
+        test_groups = set(
+            df.loc[training["X_test"].index, "account_id"]
+        )
+        self.assertTrue(train_groups.isdisjoint(test_groups))
+
+
+class TestNumericSemantics(unittest.TestCase):
+
+    def test_tiered_measurement_stays_numeric(self):
+        df = pd.DataFrame({
+            "monthly_fee": [8.99, 13.99, 17.99] * 20,
+            "number_of_profiles": [1, 2, 3, 4, 5] * 12,
+            "y": [0, 1] * 30,
+        })
+        schema = analyze_schema(df, target_column="y")
+        records = {
+            record["column"]: record
+            for record in schema["columns"]
+        }
+        self.assertEqual(
+            records["monthly_fee"]["semantic_type"], "measurement"
+        )
+        self.assertEqual(
+            records["monthly_fee"]["role"], "numeric"
+        )
+        self.assertEqual(
+            records["number_of_profiles"]["semantic_type"],
+            "count",
+        )
+
+    def test_semantic_alternative_present(self):
+        df = pd.DataFrame({
+            "monthly_fee": [8.99, 13.99, 17.99] * 20,
+            "y": [0, 1] * 30,
+        })
+        schema = analyze_schema(df, target_column="y")
+        record = next(
+            r for r in schema["columns"]
+            if r["column"] == "monthly_fee"
+        )
+        self.assertIn("semantic_alternative", record)
+        self.assertIsNotNone(record["semantic_alternative"])
+
+    def test_target_storage_and_semantic(self):
+        from modules.problem_type_detector import (
+            detect_problem_type,
+        )
+
+        df = pd.DataFrame({
+            "x": np.random.normal(0, 1, 60),
+            "churned": [0, 1] * 30,
+        })
+        result = detect_problem_type(df, "churned")
+        self.assertEqual(result["problem_type"], "Classification")
+        self.assertEqual(result["storage_dtype"], "int64")
+        self.assertEqual(result["semantic_type"], "binary_target")
+
+
+class TestFeatureAccounting(unittest.TestCase):
+
+    def test_prep_and_training_agree(self):
+        df = pd.DataFrame({
+            "id": [f"U{i}" for i in range(60)],
+            "age": np.random.normal(40, 10, 60),
+            "gender": ["M", "F"] * 30,
+            "y": [0, 1] * 30,
+        })
+        prep = prepare_preprocessing(df, "y", "Classification")
+        accounting = prep["feature_accounting"]
+
+        self.assertEqual(accounting["raw_columns_total"], 4)
+        self.assertEqual(accounting["raw_feature_columns"], 3)
+        self.assertEqual(
+            accounting["identifier_columns_removed"], ["id"]
+        )
+        self.assertEqual(accounting["raw_usable_count"], 2)
+        self.assertFalse(accounting["feature_selection_applied"])
+        self.assertEqual(
+            accounting["final_model_features"],
+            accounting["generated_transformed_features"],
+        )
+
+        training = train_models(df, "y", "Classification")
+        self.assertEqual(
+            training["n_transformed_features"],
+            accounting["generated_transformed_features"],
+        )
+        self.assertEqual(
+            training["feature_accounting"]["final_model_features"],
+            accounting["final_model_features"],
+        )
+
+
+class TestReportConsistency(unittest.TestCase):
+
+    def test_report_matches_pipeline(self):
+        from modules.report_generator import collect_report_data
+
+        df = pd.DataFrame({
+            "account_id": [f"A{i % 8:02d}" for i in range(160)],
+            "x1": np.random.normal(0, 1, 160),
+            "x2": np.random.normal(5, 2, 160),
+            "y": np.random.choice([0, 1], 160),
+        })
+
+        data = collect_report_data(
+            df, "check.csv", "Predict y", "y", "Classification",
+            "test explanation",
+        )
+
+        self.assertEqual(data["n_rows"], 160)
+        self.assertEqual(data["target_column"], "y")
+        self.assertEqual(data["problem_type"], "Classification")
+
+        group = data["group_validation"]
+        self.assertEqual(group["group_column"], "account_id")
+        self.assertIn("Group", group["strategy"])
+        self.assertIsNotNone(group["reason"])
+        self.assertEqual(group["confidence"], "high")
+
+        training = train_models(df, "y", "Classification")
+        self.assertEqual(
+            [m["name"] for m in data["model_results"]["results"]],
+            [m["name"] for m in training["results"]],
+        )
+        self.assertEqual(
+            data["model_results"]["n_transformed_features"],
+            training["n_transformed_features"],
+        )
+
+        # Method honesty: report must carry the actual
+        # explanation-layer method, never an assumed SHAP.
+        from modules.model_trainer import train_named_model
+        from modules.explainability import perform_explainability
+
+        best = data["model_results"]["best_model"]
+        fitted = train_named_model(
+            df, "y", "Classification", best["name"]
+        )
+        actual = perform_explainability(
+            df, "y", "Classification",
+            pipeline=fitted["pipeline"],
+            X=fitted["X_test"],
+            y=fitted["y_test"],
+        )
+        self.assertEqual(
+            data["model_results"]["explanation_method"],
+            actual.get("method"),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

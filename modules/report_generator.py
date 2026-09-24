@@ -42,12 +42,25 @@ def collect_report_data(
         ),
     )
 
+    from modules.data_validator import safe_duplicate_check
+
+    duplicate_check = safe_duplicate_check(df)
+
     data_quality = {
         "rows": rows,
         "columns": columns,
-        "duplicate_rows": int(
-            df.duplicated().sum()
-        ),
+        "duplicate_rows": duplicate_check[
+            "duplicate_rows_detected"
+        ],
+        "duplicate_check_status": duplicate_check[
+            "duplicate_check_status"
+        ],
+        "duplicate_check_scope": duplicate_check[
+            "duplicate_check_scope"
+        ],
+        "duplicate_check_warning": duplicate_check[
+            "duplicate_check_warning"
+        ],
         "missing_cells": int(
             df.isnull().sum().sum()
         ),
@@ -121,6 +134,8 @@ def collect_report_data(
 
     used_chronological_split = False
 
+    used_group_split = None
+
     if problem_type == "Clustering":
 
         from modules.clustering import perform_clustering
@@ -182,6 +197,47 @@ def collect_report_data(
             training.get("used_chronological_split", False)
         )
 
+        used_group_split = training.get("used_group_split")
+
+        # Actual explanation method from the explanation
+        # layer (never assumed to be SHAP).
+        explanation_method = None
+        explanation_top_features = []
+
+        try:
+
+            from modules.model_trainer import train_named_model
+            from modules.explainability import (
+                perform_explainability,
+            )
+
+            if best is not None:
+                fitted = train_named_model(
+                    df,
+                    target_column,
+                    problem_type,
+                    best["name"],
+                )
+
+                explain_result = perform_explainability(
+                    df,
+                    target_column,
+                    problem_type,
+                    pipeline=fitted["pipeline"],
+                    X=fitted["X_test"],
+                    y=fitted["y_test"],
+                )
+
+                explanation_method = explain_result.get(
+                    "method"
+                )
+                explanation_top_features = (
+                    explain_result.get("top_features", [])[:5]
+                )
+
+        except Exception:
+            pass
+
         model_results = {
             "problem_type": problem_type,
             "target_column": target_column,
@@ -192,6 +248,17 @@ def collect_report_data(
             "X_test_shape": training["X_test_shape"],
             "used_chronological_split": (
                 used_chronological_split
+            ),
+            "used_group_split": used_group_split,
+            "n_transformed_features": training.get(
+                "n_transformed_features"
+            ),
+            "feature_accounting": training.get(
+                "feature_accounting"
+            ),
+            "explanation_method": explanation_method,
+            "explanation_top_features": (
+                explanation_top_features
             ),
         }
 
@@ -272,6 +339,29 @@ def collect_report_data(
         "model_results": model_results,
         "explanation": explanation,
         "schema": schema,
+        "group_validation": {
+            "group_column": (
+                (schema.get("group_details") or [{}])[0].get(
+                    "column"
+                )
+                if schema.get("group_details")
+                else None
+            ),
+            "strategy": schema.get(
+                "validation_strategy", {}
+            ).get("strategy"),
+            "reason": schema.get(
+                "validation_strategy", {}
+            ).get("reason"),
+            "confidence": (
+                (schema.get("group_details") or [{}])[0].get(
+                    "confidence"
+                )
+                if schema.get("group_details")
+                else None
+            ),
+            "details": schema.get("group_details", []),
+        },
         "column_roles": column_roles,
         "warnings": warnings,
         "random_seed": 42,

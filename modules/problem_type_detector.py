@@ -64,6 +64,18 @@ def detect_problem_type(
         else None
     )
 
+    storage_dtype = (
+        target_record.get("raw_dtype", target_record.get("dtype"))
+        if target_record
+        else str(df[target_column].dtype)
+    )
+
+    semantic_type = (
+        target_record.get("semantic_type")
+        if target_record
+        else None
+    )
+
     target = df[target_column].dropna()
 
     # ========================================================
@@ -218,6 +230,8 @@ def detect_problem_type(
             "problem_type": "Classification",
             "target_column": target_column,
             "data_type": data_type,
+            "storage_dtype": storage_dtype,
+            "semantic_type": semantic_type,
             "unique_values": unique_count,
             "message": (
                 "The selected target is categorical, "
@@ -276,6 +290,8 @@ def detect_problem_type(
             "problem_type": "Regression",
             "target_column": target_column,
             "data_type": data_type,
+            "storage_dtype": storage_dtype,
+            "semantic_type": semantic_type,
             "unique_values": unique_count,
             "message": (
                 "The selected target contains numerical "

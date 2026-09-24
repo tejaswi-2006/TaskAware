@@ -119,6 +119,43 @@
             {{ duplicate_rows }}
         </p>
 
+        {% if validation_results.get("duplicate_check_status") == "partial" %}
+
+        <p>
+            <strong>Dataset validation completed with limitations.</strong>
+        </p>
+
+        <p>
+            <strong>Duplicate check:</strong>
+            Partial duplicate check completed.
+            Nested object columns were excluded from
+            duplicate hashing.
+            ({{ validation_results.get("duplicate_check_scope") }}.)
+            Duplicate count may not include duplicates
+            distinguishable only through nested object
+            content.
+        </p>
+
+        {% if validation_results.get("unsupported_columns_ignored_for_duplicate_check") %}
+
+        <p>
+            <strong>Unsupported columns:</strong>
+            {{ validation_results.get("unsupported_columns_ignored_for_duplicate_check") | join(", ") }}
+            (dictionary/list values — excluded from
+            duplicate hashing, reported separately below).
+        </p>
+
+        {% endif %}
+
+        {% elif validation_results.get("duplicate_check_status") == "skipped" %}
+
+        <p>
+            <strong>Duplicate check:</strong>
+            {{ validation_results.get("duplicate_check_warning") }}
+        </p>
+
+        {% endif %}
+
 
         <h3>Constant Columns</h3>
 

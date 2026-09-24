@@ -321,6 +321,78 @@
             {{ selection["feature_count"] }}
         </p>
 
+        {% if prep.get("feature_accounting") %}
+        {% set fa = prep["feature_accounting"] %}
+
+        <h3>
+            Feature Accounting
+        </h3>
+
+        <table>
+
+            <tr>
+                <th>Stage</th>
+                <th>Count / Detail</th>
+            </tr>
+
+            <tr>
+                <td>Raw feature columns</td>
+                <td>{{ fa["raw_feature_columns"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Identifier columns removed</td>
+                <td>{{ fa["identifier_columns_removed"] | length }}
+                    {% if fa["identifier_columns_removed"] %}
+                    ({{ fa["identifier_columns_removed"] | join(", ") }})
+                    {% endif %}
+                </td>
+            </tr>
+
+            <tr>
+                <td>Unsupported columns excluded</td>
+                <td>{{ fa["unsupported_columns_excluded"] | length }}
+                    {% if fa["unsupported_columns_excluded"] %}
+                    ({{ fa["unsupported_columns_excluded"] | join(", ") }})
+                    {% endif %}
+                </td>
+            </tr>
+
+            <tr>
+                <td>Raw usable feature columns</td>
+                <td>{{ fa["raw_usable_count"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Generated transformed features</td>
+                <td>{{ fa["generated_transformed_features"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Feature selection applied</td>
+                <td>
+                    {% if fa["feature_selection_applied"] %}
+                    Yes
+                    {% else %}
+                    No — {{ fa["selection_note"] }}
+                    {% endif %}
+                </td>
+            </tr>
+
+            <tr>
+                <td>Features removed by selection</td>
+                <td>{{ fa["features_removed_by_selection"] }}</td>
+            </tr>
+
+            <tr>
+                <td>Final model features</td>
+                <td>{{ fa["final_model_features"] }}</td>
+            </tr>
+
+        </table>
+
+        {% endif %}
+
         {% if selection["high_correlation"] %}
 
         <h3>

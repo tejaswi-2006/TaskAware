@@ -730,5 +730,61 @@ def prepare_preprocessing(
         "has_missing": any(
             item["missing_count"] > 0
             for item in missing_summary
-        )
+        ),
+        "feature_accounting": feature_accounting(
+            df,
+            target_column,
+            schema,
+            preview,
+        ),
+    }
+
+
+def feature_accounting(
+    df,
+    target_column,
+    schema,
+    preview,
+):
+    """
+    Consistent feature-count accounting shared by
+    preprocessing, training, explainability and reports.
+
+    TaskAware does not automatically drop features found
+    by the advisory selection report, so selection is
+    reported as not applied and every transformed feature
+    is retained for modelling.
+    """
+    usable = list(schema.get("feature_columns", []))
+    transformed = int(
+        (preview or {}).get("features_after", 0)
+    )
+
+    return {
+        "raw_columns_total": int(len(df.columns)),
+        "target_column": target_column,
+        "raw_feature_columns": (
+            int(len(df.columns) - 1)
+            if target_column in list(df.columns)
+            else int(len(df.columns))
+        ),
+        "identifier_columns_removed": list(
+            schema.get("id_columns", [])
+        ),
+        "unsupported_columns_excluded": list(
+            schema.get("unsupported_columns", [])
+        ),
+        "constant_columns_removed": list(
+            schema.get("constant_columns", [])
+        ),
+        "raw_usable_feature_columns": usable,
+        "raw_usable_count": len(usable),
+        "generated_transformed_features": transformed,
+        "feature_selection_applied": False,
+        "selection_note": (
+            "Feature selection was not applied. All "
+            "transformed features were retained."
+        ),
+        "features_removed_by_selection": 0,
+        "final_model_features": transformed,
     }
