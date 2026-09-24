@@ -35,6 +35,11 @@
             border: 2px solid #333;
         }
 
+        .limitation {
+            border: 2px solid #b26a00;
+            background: #fff8ec;
+        }
+
         .meta {
             color: #555;
         }
@@ -60,12 +65,16 @@
             background: #9a6700;
         }
 
-        .explanation-text {
-            white-space: pre-wrap;
+        .plain-summary {
+            font-size: 17px;
             background: #fafafa;
             border: 1px solid #eee;
             border-radius: 6px;
             padding: 16px;
+        }
+
+        .section-body {
+            white-space: pre-wrap;
             font-size: 15px;
         }
 
@@ -74,10 +83,44 @@
             font-size: 13px;
         }
 
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #f3f3f3;
+        }
+
+        details {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin: 20px 0;
+        }
+
+        summary {
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
         button {
             padding: 11px 20px;
             font-size: 15px;
             cursor: pointer;
+        }
+
+        ul.top-features {
+            font-size: 15px;
         }
 
     </style>
@@ -117,13 +160,13 @@
 
 
     <!-- ================================================= -->
-    <!-- EXPLANATION -->
+    <!-- LEVEL 1: PLAIN-LANGUAGE SUMMARY (shown first)     -->
     <!-- ================================================= -->
 
     <div class="card success">
 
         <h2>
-            Explanation
+            In Plain Language
 
             {% if explanation_result["source"] == "okf" %}
             <span class="source-badge source-okf">
@@ -141,8 +184,8 @@
 
         </h2>
 
-        <div class="explanation-text">
-            {{ explanation_result["explanation"] }}
+        <div class="plain-summary">
+            {{ presentation["summary"] }}
         </div>
 
         {% if explanation_result["message"] %}
@@ -168,14 +211,203 @@
 
 
     <!-- ================================================= -->
-    <!-- STRUCTURED CONTEXT (transparency) -->
+    <!-- LEVEL 1-2: NARRATIVE SECTIONS                     -->
+    <!-- ================================================= -->
+
+    {% for section in presentation["sections"] %}
+
+    {% if section["title"] != "Important Limitation"
+        and section["title"] != "Simple Conclusion" %}
+
+    <div class="card">
+
+        <h2>
+            {{ section["title"] }}
+        </h2>
+
+        <div class="section-body">{{ section["body"] }}</div>
+
+    </div>
+
+    {% endif %}
+
+    {% endfor %}
+
+
+    <!-- ================================================= -->
+    <!-- LEVEL 2: MAIN RESULT CARD                         -->
     <!-- ================================================= -->
 
     <div class="card">
 
         <h2>
-            What the Explanation is Based On
+            Main Result
         </h2>
+
+        <p>
+            <strong>Task:</strong>
+            {{ presentation["result_card"]["task"] }}
+        </p>
+
+        {% if presentation["result_card"]["target"] %}
+        <p>
+            <strong>Predicted field:</strong>
+            {{ presentation["result_card"]["target"] }}
+        </p>
+        {% endif %}
+
+        {% if presentation["result_card"]["target_classes"] %}
+        <p>
+            <strong>Possible categories:</strong>
+            {{ presentation["result_card"]["target_classes"] | join(", ") }}
+        </p>
+        {% endif %}
+
+        {% if presentation["result_card"]["model"] %}
+        <p>
+            <strong>Selected model:</strong>
+            {{ presentation["result_card"]["model"] }}
+        </p>
+        {% endif %}
+
+        {% if presentation["result_card"]["n_records"] %}
+        <p>
+            <strong>Records analyzed:</strong>
+            {{ presentation["result_card"]["n_records"] }}
+        </p>
+        {% endif %}
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- LEVEL 2: TOP FEATURES (readable labels)           -->
+    <!-- ================================================= -->
+
+    {% if presentation["top_features"] %}
+
+    <div class="card">
+
+        <h2>
+            What Influenced the Result Most
+        </h2>
+
+        <p class="note">
+            Readable descriptions are shown first. Raw
+            field names appear only inside the technical
+            details below.
+        </p>
+
+        <ul class="top-features">
+
+            {% for item in presentation["top_features"] %}
+
+            <li>
+
+                <strong>{{ item["label"] }}</strong>
+
+                {% if item["detail"] %}
+                <span class="note">
+                    {{ item["detail"] }}
+                </span>
+                {% endif %}
+
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- LEVEL 2: RELIABILITY IN SIMPLE LANGUAGE           -->
+    <!-- ================================================= -->
+
+    {% if presentation["reliability"] %}
+
+    <div class="card">
+
+        <h2>
+            How Reliable Is It?
+        </h2>
+
+        <ul>
+
+            {% for item in presentation["reliability"] %}
+
+            <li>
+
+                <strong>{{ item["label"] }}</strong>
+                Measured value: {{ item["value"] }}.
+
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- IMPORTANT LIMITATION (always visible)             -->
+    <!-- ================================================= -->
+
+    {% if presentation["limitation"] %}
+
+    <div class="card limitation">
+
+        <h2>
+            Important Limitation
+        </h2>
+
+        <p>
+            {{ presentation["limitation"] }}
+        </p>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- ================================================= -->
+    <!-- SIMPLE CONCLUSION                                 -->
+    <!-- ================================================= -->
+
+    {% for section in presentation["sections"] %}
+
+    {% if section["title"] == "Simple Conclusion" %}
+
+    <div class="card">
+
+        <h2>
+            Simple Conclusion
+        </h2>
+
+        <div class="section-body">{{ section["body"] }}</div>
+
+    </div>
+
+    {% endif %}
+
+    {% endfor %}
+
+
+    <!-- ================================================= -->
+    <!-- LEVEL 3: TECHNICAL DETAILS (expandable)           -->
+    <!-- ================================================= -->
+
+    <details>
+
+        <summary>
+            View Technical Details
+        </summary>
 
         <p class="note">
             The AI explains structured results computed by
@@ -183,10 +415,30 @@
             dataset.
         </p>
 
-        {% if context["metrics"] %}
+        <h3>
+            Explanation Method
+        </h3>
+
+        <p>
+            {{ presentation["technical"]["method_plain"] }}
+        </p>
+
+        {% if presentation["technical"]["selection_reason"] %}
 
         <h3>
-            Key Metrics
+            Model Selection
+        </h3>
+
+        <p>
+            {{ presentation["technical"]["selection_reason"] }}
+        </p>
+
+        {% endif %}
+
+        {% if presentation["technical"]["metrics"] %}
+
+        <h3>
+            Full Metrics
         </h3>
 
         <table>
@@ -196,13 +448,13 @@
                 <th>Value</th>
             </tr>
 
-            {% for key, value in context["metrics"].items() %}
+            {% for row in presentation["technical"]["metrics"] %}
 
             <tr>
 
-                <td>{{ key }}</td>
+                <td>{{ row["metric"] }}</td>
 
-                <td>{{ value }}</td>
+                <td>{{ row["value"] }}</td>
 
             </tr>
 
@@ -212,23 +464,35 @@
 
         {% endif %}
 
-        {% if context["top_features"] %}
+        {% if presentation["technical"]["feature_importance"] %}
 
         <h3>
-            Top Features
+            Transformed Features and Importance
         </h3>
 
-        <ol>
+        <table>
 
-            {% for feature in context["top_features"] %}
+            <tr>
+                <th>Transformed Feature</th>
+                <th>Readable Label</th>
+                <th>Value</th>
+            </tr>
 
-            <li>
-                {{ feature }}
-            </li>
+            {% for row in presentation["technical"]["feature_importance"] %}
+
+            <tr>
+
+                <td>{{ row["feature"] }}</td>
+
+                <td>{{ row["label"] }}</td>
+
+                <td>{{ row["value"] }}</td>
+
+            </tr>
 
             {% endfor %}
 
-        </ol>
+        </table>
 
         {% endif %}
 
@@ -244,7 +508,16 @@
 
         {% endif %}
 
-    </div>
+        <h3>
+            Provenance
+        </h3>
+
+        <p class="note">
+            Source: {{ presentation["technical"]["provenance"]["source"] }}.
+            {{ presentation["technical"]["provenance"]["message"] }}
+        </p>
+
+    </details>
 
 
     <!-- ================================================= -->

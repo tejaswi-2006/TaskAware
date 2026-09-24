@@ -26,6 +26,17 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from modules.schema_analyzer import analyze_schema
+from modules.ai_explainer import (
+    BEGINNER_METRIC_LABELS,
+    SECTION_TITLES,
+    build_presentation,
+    build_user_prompt,
+    fallback_explanation,
+    generate_explanation,
+    humanize_feature_name,
+    split_sections,
+    validate_explanation,
+)
 from modules.objective_target import analyze_target_candidates
 from modules.preprocessing import (
     prepare_preprocessing,
@@ -372,6 +383,187 @@ class TestEnrichedSchema(unittest.TestCase):
 
         # Must not raise.
         json.dumps(schema)
+
+
+def make_explain_context():
+    return {
+        "problem_type": "Classification",
+        "target": "churned",
+        "model": "Random Forest",
+        "objective": "Predict customer churn",
+        "n_records": 5000,
+        "n_test": 1000,
+        "target_classes": ["0", "1"],
+        "method": "Feature Importance",
+        "selection_reason": "Best cross-validated F1.",
+        "metrics": {
+            "accuracy": 0.887,
+            "f1_score": 0.89,
+            "precision": 0.891,
+            "recall": 0.889,
+        },
+        "top_features": [
+            "avg_watch_time_per_day",
+            "watch_hours",
+            "last_login_days",
+            "monthly_fee",
+            "number_of_profiles",
+        ],
+        "feature_importance": [
+            {
+                "feature": "avg_watch_time_per_day",
+                "importance": 0.31,
+            },
+        ],
+        "source_columns": {},
+        "evaluation_notes": None,
+    }
+
+
+class TestAIExplanation(unittest.TestCase):
+
+    def test_beginner_labels(self):
+        self.assertEqual(
+            BEGINNER_METRIC_LABELS["accuracy"],
+            "How often the model was correct overall.",
+        )
+        self.assertEqual(
+            BEGINNER_METRIC_LABELS["recall"],
+            "How many actual positive cases the model found.",
+        )
+
+    def test_humanize_dynamic(self):
+        self.assertEqual(
+            humanize_feature_name("monthly_fee"),
+            "Monthly Fee",
+        )
+        self.assertEqual(
+            humanize_feature_name("review:excellent"),
+            'word "excellent" in Review',
+        )
+        self.assertEqual(
+            humanize_feature_name("avg_watch_time_per_day"),
+            "Avg Watch Time Per Day",
+        )
+
+    def test_prompt_requires_sections(self):
+        prompt = build_user_prompt('{"a": 1}')
+
+        for title in SECTION_TITLES:
+            self.assertIn(f"## {title}", prompt)
+
+    def test_fallback_passes_validation(self):
+        for problem_type, mutate in [
+            ("Classification", {}),
+            ("Regression", {
+                "target": "final_exam_score",
+                "model": "Ridge",
+                "method": "Model Coefficients",
+                "metrics": {"r2": 0.71, "mae": 8.42},
+                "top_features": [
+                    "attendance_percent",
+                    "previous_grade",
+                ],
+            }),
+            ("Clustering", {
+                "target": None,
+                "model": "K-Means",
+                "method": "Cluster Profiles",
+                "metrics": {},
+                "n_clusters": 3,
+                "top_features": ["age", "income"],
+            }),
+        ]:
+            context = make_explain_context()
+            context["problem_type"] = problem_type
+            context.update(mutate)
+
+            text = fallback_explanation(context)
+            sections = split_sections(text)
+
+            for title in SECTION_TITLES:
+                self.assertIn(title, sections)
+
+            result = validate_explanation(text, context)
+            self.assertTrue(result["valid"], result["issues"])
+
+    def test_fallback_never_calls_rf_importance_shap(self):
+        import re
+
+        context = make_explain_context()
+        text = fallback_explanation(context)
+        affirmed = re.sub(r"not shap", "", text.lower())
+        affirmed = re.sub(r"this is not shap", "", affirmed)
+        self.assertNotIn("shap", affirmed)
+        self.assertIn("Avg Watch Time Per Day", text)
+
+    def test_validation_rejects_invented_metric(self):
+        context = make_explain_context()
+        text = (
+            fallback_explanation(context) + " Accuracy 0.99."
+        )
+        result = validate_explanation(text, context)
+        self.assertFalse(result["valid"])
+
+    def test_validation_rejects_causal_claim(self):
+        context = make_explain_context()
+        text = (
+            fallback_explanation(context)
+            + " Low watching causes churn."
+        )
+        result = validate_explanation(text, context)
+        self.assertFalse(result["valid"])
+        self.assertTrue(
+            any("causal" in issue for issue in result["issues"])
+        )
+
+    def test_validation_allows_negated_causal(self):
+        context = make_explain_context()
+        text = (
+            "## What TaskAware Found\nTaskAware analyzed "
+            "records to predict churned with Random Forest "
+            "using feature importance. Accuracy 0.887. "
+            "These patterns do not prove that watching "
+            "causes anything. Limitation: validate before "
+            "operational use."
+        )
+        result = validate_explanation(text, context)
+        self.assertTrue(result["valid"], result["issues"])
+
+    def test_generate_without_api_key_uses_fallback(self):
+        import os
+
+        os.environ.pop("GROQ_API_KEY", None)
+        os.environ.pop("GROQ_API_TOKEN", None)
+
+        result = generate_explanation(
+            make_explain_context(),
+            use_okf=False,
+        )
+
+        self.assertEqual(result["source"], "fallback")
+        self.assertTrue(result["validation"]["valid"])
+        self.assertEqual(len(result["sections"]), 6)
+        self.assertTrue(result["plain_summary"])
+
+    def test_presentation_structure(self):
+        context = make_explain_context()
+        result = generate_explanation(context, use_okf=False)
+        presentation = build_presentation(context, result)
+
+        self.assertIn("summary", presentation)
+        self.assertIn("result_card", presentation)
+        self.assertIn("reliability", presentation)
+        self.assertIn("limitation", presentation)
+        self.assertIn("technical", presentation)
+        self.assertEqual(
+            presentation["top_features"][0]["label"],
+            "Avg Watch Time Per Day",
+        )
+        self.assertEqual(
+            presentation["technical"]["method"],
+            "Feature Importance",
+        )
 
 
 if __name__ == "__main__":

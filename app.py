@@ -23,7 +23,11 @@ from modules.model_trainer import train_models, train_named_model, TaskAwareTrai
 from modules.model_selector import select_best_model
 from modules.clustering import perform_clustering
 from modules.explainability import perform_explainability
-from modules.ai_explainer import generate_explanation, get_api_key
+from modules.ai_explainer import (
+    build_presentation,
+    generate_explanation,
+    get_api_key,
+)
 import modules.okf_manager as okf_manager
 from modules.okf_manager import okf_summary
 from modules.report_generator import collect_report_data, save_report
@@ -2169,8 +2173,16 @@ def ai_explanation():
         "feature_importance": [],
         "cluster_profiles": None,
         "evaluation_notes": None,
-        "n_clusters": None
+        "n_clusters": None,
+        "method": None,
+        "n_records": int(len(df)),
+        "n_test": None,
+        "target_classes": None,
+        "selection_reason": None,
+        "source_columns": {},
     }
+
+    shap_result = None
 
     # ------------------------------------------------
     # CLUSTERING
@@ -2190,6 +2202,10 @@ def ai_explanation():
             )
 
             if cluster_result.get("success"):
+
+                context["model"] = "K-Means"
+
+                context["method"] = "Cluster Profiles"
 
                 context["n_clusters"] = (
                     cluster_result["n_clusters"]
@@ -2263,6 +2279,10 @@ def ai_explanation():
                 if best is not None:
                     selected_model = best["name"]
 
+                    context["selection_reason"] = (
+                        best.get("reason")
+                    )
+
             except Exception:
                 pass
 
@@ -2298,6 +2318,22 @@ def ai_explanation():
                         "feature_importance",
                         []
                     )[:6]
+                )
+
+                context["method"] = shap_result.get("method")
+
+                context["source_columns"] = (
+                    shap_result.get("source_columns", {})
+                )
+
+                context["n_test"] = int(
+                    len(fitted["X_test"])
+                )
+
+                target_info = fitted.get("target_info") or {}
+
+                context["target_classes"] = (
+                    target_info.get("classes")
                 )
 
                 # ----- Metrics -----
@@ -2411,6 +2447,11 @@ def ai_explanation():
         okf_manager=okf_manager
     )
 
+    presentation = build_presentation(
+        context,
+        explanation_result
+    )
+
     # --------------------------------------------------------
     # RESULTS PAGE
     # --------------------------------------------------------
@@ -2424,6 +2465,8 @@ def ai_explanation():
         selected_model=selected_model or None,
         context=context,
         explanation_result=explanation_result,
+        presentation=presentation,
+        shap_result=shap_result,
         api_configured=bool(get_api_key())
     )
 
