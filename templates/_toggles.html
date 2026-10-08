@@ -1,31 +1,33 @@
-<div class="ta-topbar">
+<div class="ta-controls" role="group" aria-label="Display options">
 
-    <span class="ta-brand">
-        TaskAware Analytics
-    </span>
+    <button
+        type="button"
+        id="ta-theme-toggle"
+        class="ta-toggle"
+        aria-pressed="false"
+        title="Switch between light and dark mode"
+    >
+        Dark Mode
+    </button>
 
-    <div class="ta-controls" role="group" aria-label="Display options">
+    <button
+        type="button"
+        id="ta-motion-toggle"
+        class="ta-toggle"
+        aria-pressed="false"
+        title="Disable transitions and effects"
+    >
+        Reduce Motion
+    </button>
 
-        <button
-            type="button"
-            id="ta-motion-toggle"
-            class="ta-toggle"
-            aria-pressed="false"
-            title="Disable transitions and effects"
-        >
-            Reduce Motion
-        </button>
-
-        <button
-            type="button"
-            id="ta-simple-toggle"
-            class="ta-toggle"
-            aria-pressed="false"
-            title="Flat high-contrast layout without effects"
-        >
-            Simple View
-        </button>
-
-    </div>
+    <button
+        type="button"
+        id="ta-simple-toggle"
+        class="ta-toggle"
+        aria-pressed="false"
+        title="Flat high-contrast layout without effects"
+    >
+        Simple View
+    </button>
 
 </div>

@@ -1,6 +1,8 @@
 /* TaskAware UI helpers: no animation loops, no WebGL.
-   - Persists Reduce Motion / Simple View toggles.
+   - Persists theme (light/dark), Reduce Motion and
+     Simple View toggles.
    - Optional CSS-3D chart tilt (off until requested).
+   - Animated counters honour reduced motion.
    - Timeline uses native semantics; nothing decorative
      delays content. */
 (function () {
@@ -24,6 +26,21 @@
         }
     }
 
+    function motionReduced() {
+        if (root.getAttribute("data-motion") === "reduced") {
+            return true;
+        }
+        return window.matchMedia(
+            "(prefers-reduced-motion: reduce)"
+        ).matches;
+    }
+
+    function applyTheme() {
+        var mode = stored("ta-theme", "light");
+        root.setAttribute("data-theme", mode);
+        syncPressed("ta-theme-toggle", mode === "dark");
+    }
+
     function applyMotion() {
         var mq = window.matchMedia("(prefers-reduced-motion: reduce)");
         var mode = stored("ta-motion", mq.matches ? "reduced" : "full");
@@ -44,9 +61,52 @@
         }
     }
 
+    function animateCounters() {
+        var nodes = document.querySelectorAll("[data-count-up]");
+        if (!nodes.length) {
+            return;
+        }
+        if (motionReduced()) {
+            return;
+        }
+        nodes.forEach(function (el) {
+            var target = parseFloat(el.getAttribute("data-count-up"));
+            if (isNaN(target)) {
+                return;
+            }
+            var start = null;
+            var duration = 900;
+            function frame(now) {
+                if (!start) {
+                    start = now;
+                }
+                var ratio = Math.min((now - start) / duration, 1);
+                el.textContent = Math.round(target * ratio);
+                if (ratio < 1) {
+                    window.requestAnimationFrame(frame);
+                }
+            }
+            window.requestAnimationFrame(frame);
+        });
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
+        applyTheme();
         applyMotion();
         applyView();
+        animateCounters();
+
+        var themeBtn = document.getElementById("ta-theme-toggle");
+        if (themeBtn) {
+            themeBtn.addEventListener("click", function () {
+                var next =
+                    root.getAttribute("data-theme") === "dark"
+                        ? "light"
+                        : "dark";
+                store("ta-theme", next);
+                applyTheme();
+            });
+        }
 
         var motionBtn = document.getElementById("ta-motion-toggle");
         if (motionBtn) {

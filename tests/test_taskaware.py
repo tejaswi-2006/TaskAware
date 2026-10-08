@@ -918,9 +918,17 @@ class TestAnalyticsUI(unittest.TestCase):
     def test_flow_templates_share_chrome(self):
         for name in self.FLOW_TEMPLATES:
             html = self._read(name)
-            self.assertIn("taskaware.css", name and html, name)
+            themed = (
+                "taskaware.css" in html
+                or 'extends "base.html"' in html
+            )
+            self.assertTrue(themed, name)
             self.assertIn("ta-skip-link", html, name)
-            self.assertIn("_toggles.html", html, name)
+            has_toggles = (
+                "_toggles.html" in html
+                or 'extends "base.html"' in html
+            )
+            self.assertTrue(has_toggles, name)
 
     def test_timeline_renders_states(self):
         from app import app as flask_app
@@ -1518,6 +1526,119 @@ class TestMissingTarget(unittest.TestCase):
                     "target_missing_count",
                     "target_warning"):
             self.assertIn(key, row_info)
+
+
+class TestPremiumUI(unittest.TestCase):
+
+    TEMPLATES_DIR = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "templates",
+    )
+
+    def _read(self, name):
+        with open(
+            os.path.join(self.TEMPLATES_DIR, name),
+            encoding="utf-8",
+        ) as handle:
+            return handle.read()
+
+    def test_base_shell_exists(self):
+        html = self._read("base.html")
+        self.assertIn("ta-sidebar", html)
+        self.assertIn("ta-appbar", html)
+        self.assertIn("ta-main-col", html)
+        self.assertIn("block content", html)
+        self.assertIn("aria-label", html)
+
+    def test_light_theme_with_dark_mode(self):
+        base = os.path.dirname(os.path.dirname(__file__))
+
+        with open(
+            os.path.join(base, "static", "css", "taskaware.css"),
+            encoding="utf-8",
+        ) as handle:
+            css = handle.read()
+
+        self.assertIn("--ta-bg: #f5f7fb", css)
+        self.assertIn('html[data-theme="dark"]', css)
+        self.assertIn("ta-sidebar", css)
+        self.assertIn("ta-hero", css)
+        self.assertIn("ta-kpi", css)
+
+    def test_theme_toggle_persists(self):
+        base = os.path.dirname(os.path.dirname(__file__))
+
+        with open(
+            os.path.join(base, "static", "js", "taskaware.js"),
+            encoding="utf-8",
+        ) as handle:
+            js = handle.read()
+
+        self.assertIn("ta-theme", js)
+        self.assertIn("localStorage", js)
+        # Animated counters must respect reduced motion.
+        self.assertIn("motionReduced", js)
+
+    def test_landing_content(self):
+        html = self._read("index.html")
+        self.assertIn("TASKAWARE", html)
+        self.assertIn(
+            "From Raw Data to Explainable Intelligence", html
+        )
+        self.assertIn("Start New Analysis", html)
+        self.assertIn("Explore TaskAware", html)
+        self.assertIn("ta-pipeline-3d", html)
+        for capability in ("Dataset Intelligence",
+                           "Target Intelligence",
+                           "Automated Preprocessing",
+                           "Model Recommendation",
+                           "Explainable AI",
+                           "Knowledge Reuse"):
+            self.assertIn(capability, html)
+
+    def test_landing_route(self):
+        from app import app as flask_app
+
+        response = flask_app.test_client().get("/")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("TASKAWARE", body)
+        self.assertIn("Start New Analysis", body)
+        self.assertNotIn("Traceback", body)
+
+    def test_dashboard_honest_counts(self):
+        # Dashboard must only show real counts, never
+        # invented model metrics.
+        html = self._read("dashboard.html")
+        self.assertIn("data-count-up", html)
+        self.assertIn("Recent Analyses", html)
+        self.assertNotIn("92.4", html)
+        self.assertNotIn("BEST F1", html)
+
+    def test_dashboard_route(self):
+        from app import app as flask_app
+
+        client = flask_app.test_client()
+
+        with client.session_transaction() as session:
+            session["user_id"] = 1
+            session["username"] = "tester"
+
+        response = client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("Recent Analyses", body)
+        self.assertIn("ta-sidebar", body)
+        self.assertIn("ta-appbar", body)
+        self.assertNotIn("Traceback", body)
+
+    def test_sidebar_states_not_color_only(self):
+        html = self._read("base.html")
+        # Every nav state carries text or an icon.
+        self.assertIn("ta-side-icon", html)
+        self.assertIn("(current)", html)
+        self.assertIn("(completed)", html)
+        self.assertIn("(pending)", html)
 
 
 if __name__ == "__main__":

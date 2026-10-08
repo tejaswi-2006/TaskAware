@@ -408,10 +408,56 @@ def dashboard():
         session["user_id"]
     )
 
+    recent_runs = []
+
+    for project in projects:
+        try:
+            runs = database.list_analysis_runs(
+                project["id"]
+            )
+        except Exception:
+            runs = []
+
+        for run in runs:
+            entry = dict(run)
+            entry["project_name"] = project.get("name")
+            recent_runs.append(entry)
+
+    recent_runs.sort(
+        key=lambda run: run.get("created_at") or "",
+        reverse=True,
+    )
+
+    try:
+        upload_dir = app.config["UPLOAD_FOLDER"]
+        dataset_count = sum(
+            1 for name in os.listdir(upload_dir)
+            if os.path.isfile(
+                os.path.join(upload_dir, name)
+            )
+        )
+    except Exception:
+        dataset_count = 0
+
+    completed = sum(
+        1 for run in recent_runs
+        if run.get("status") == "completed"
+    )
+
+    stats = {
+        "projects": len(projects),
+        "datasets": dataset_count,
+        "analyses": len(recent_runs),
+        "completed": completed,
+        "recent_runs": recent_runs[:5],
+        "recent_run": recent_runs[0] if recent_runs else None,
+    }
+
     return render_template(
         "dashboard.html",
         username=session.get("username"),
-        projects=projects
+        projects=projects,
+        stats=stats
     )
 
 

@@ -1,230 +1,233 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
+{% block title %}TaskAware | Dashboard{% endblock %}
 
-<head>
+{% block content %}
 
-    <meta charset="UTF-8">
+<header>
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+    <h1>
+        Hello, {{ username }}
+    </h1>
 
-    <title>TaskAware | Dashboard</title>
+    <p class="ta-note">
+        Your Machine Learning Workspace
+    </p>
 
-    <style>
+</header>
 
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1000px;
-            margin: 40px auto;
-            padding: 20px;
-            line-height: 1.6;
-        }
+{% with messages = get_flashed_messages(with_categories=true) %}
 
-        .card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }
+{% for category, message in messages %}
 
-        .flash-error {
-            background: #fdecea;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
-            padding: 10px;
-            border-radius: 6px;
-            margin: 10px 0;
-        }
+<div class="flash-{{ category }}" role="status">
+    {{ message }}
+</div>
 
-        .flash-success {
-            background: #e8f5e9;
-            border: 1px solid #c8e6c9;
-            color: #2e7d32;
-            padding: 10px;
-            border-radius: 6px;
-            margin: 10px 0;
-        }
+{% endfor %}
 
-        .flash-info {
-            background: #e3f2fd;
-            border: 1px solid #bbdefb;
-            color: #1565c0;
-            padding: 10px;
-            border-radius: 6px;
-            margin: 10px 0;
-        }
-
-        .flash-warning {
-            background: #fff8e1;
-            border: 1px solid #ffe082;
-            color: #9a6700;
-            padding: 10px;
-            border-radius: 6px;
-            margin: 10px 0;
-        }
-
-        input, textarea {
-            width: 100%;
-            padding: 10px;
-            font-size: 15px;
-            box-sizing: border-box;
-            margin-top: 4px;
-        }
-
-        textarea {
-            min-height: 60px;
-        }
-
-        button {
-            padding: 11px 20px;
-            font-size: 15px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 12px;
-            font-size: 14px;
-        }
-
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background: #f3f3f3;
-        }
-
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #333;
-            padding-bottom: 10px;
-        }
-
-        .meta {
-            color: #555;
-        }
-
-    </style>
-
-    <link rel="stylesheet"
-          href="/static/css/taskaware.css">
-
-    <script src="/static/js/taskaware.js" defer></script>
-
-</head>
+{% endwith %}
 
 
-<body class="ta-body">
+{% if stats and stats.get("recent_run") %}
+{% set _run = stats["recent_run"] %}
 
-    <a class="ta-skip-link" href="#ta-main">
-        Skip to main content
+<section class="ta-card ta-card--glow" aria-label="Current analysis">
+
+    <div class="ta-label">Current Analysis</div>
+
+    <h2>
+        {{ _run.get("project_name") or _run.get("dataset_filename") }}
+    </h2>
+
+    <div class="ta-grid">
+
+        <div>
+            <div class="ta-label">Problem</div>
+            <p><strong>{{ _run.get("problem_type") or "-" }}</strong></p>
+        </div>
+
+        <div>
+            <div class="ta-label">Target</div>
+            <p><strong>{{ _run.get("target_column") or "-" }}</strong></p>
+        </div>
+
+        <div>
+            <div class="ta-label">Model</div>
+            <p><strong>{{ _run.get("selected_model") or "-" }}</strong></p>
+        </div>
+
+        <div>
+            <div class="ta-label">Status</div>
+            <p>
+                {% if _run.get("status") == "completed" %}
+                <span class="ta-badge ta-badge--ok">✓ Complete</span>
+                {% else %}
+                <span class="ta-badge ta-badge--warn">! {{ _run.get("status") }}</span>
+                {% endif %}
+            </p>
+        </div>
+
+    </div>
+
+    <a class="ta-btn" href="/upload">
+        Start New Analysis
     </a>
 
-    {% include "_toggles.html" %}
+</section>
 
-    <div class="topbar">
+{% endif %}
 
-        <h1>
-            TaskAware Dashboard
-        </h1>
 
-        <span>
-            <strong>{{ username }}</strong>
-            &nbsp;|&nbsp;
-            <a href="/upload">
-                New Analysis
-            </a>
-            &nbsp;|&nbsp;
-            <a href="/okf">
-                OKF
-            </a>
-            &nbsp;|&nbsp;
-            <a href="/logout">
-                Logout
-            </a>
-        </span>
+<section aria-label="Workspace metrics">
+
+    <div class="ta-grid">
+
+        <div class="ta-card ta-kpi">
+            <div class="ta-label">Projects</div>
+            <div class="ta-stat" data-count-up="{{ stats.get('projects', 0) if stats else 0 }}">{{ stats.get("projects", 0) if stats else 0 }}</div>
+        </div>
+
+        <div class="ta-card ta-kpi">
+            <div class="ta-label">Datasets</div>
+            <div class="ta-stat" data-count-up="{{ stats.get('datasets', 0) if stats else 0 }}">{{ stats.get("datasets", 0) if stats else 0 }}</div>
+        </div>
+
+        <div class="ta-card ta-kpi">
+            <div class="ta-label">Analyses</div>
+            <div class="ta-stat" data-count-up="{{ stats.get('analyses', 0) if stats else 0 }}">{{ stats.get("analyses", 0) if stats else 0 }}</div>
+        </div>
+
+        <div class="ta-card ta-kpi">
+            <div class="ta-label">Completed</div>
+            <div class="ta-stat" data-count-up="{{ stats.get('completed', 0) if stats else 0 }}">{{ stats.get("completed", 0) if stats else 0 }}</div>
+        </div>
 
     </div>
 
+    <p class="ta-note">
+        Counts reflect your projects, uploaded datasets and
+        recorded analysis runs. No values are estimated.
+    </p>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
+</section>
 
-    {% for category, message in messages %}
 
-    <div class="flash-{{ category }}">
-        {{ message }}
+<section class="ta-card" aria-label="Recent analyses">
+
+    <h2>
+        Recent Analyses
+    </h2>
+
+    {% if stats and stats.get("recent_runs") %}
+
+    <div class="ta-table-wrap" role="region" aria-label="Recent analyses" tabindex="0">
+
+        <table>
+
+            <caption class="ta-note">
+                Latest recorded runs across your projects.
+            </caption>
+
+            <tr>
+                <th scope="col">Dataset</th>
+                <th scope="col">Problem</th>
+                <th scope="col">Target</th>
+                <th scope="col">Model</th>
+                <th scope="col">Status</th>
+                <th scope="col">Date</th>
+            </tr>
+
+            {% for run in stats["recent_runs"] %}
+
+            <tr>
+
+                <td>{{ run.get("dataset_filename") or "-" }}</td>
+
+                <td>{{ run.get("problem_type") or "-" }}</td>
+
+                <td>{{ run.get("target_column") or "-" }}</td>
+
+                <td>{{ run.get("selected_model") or "-" }}</td>
+
+                <td>
+                    {% if run.get("status") == "completed" %}
+                    <span class="ta-badge ta-badge--ok">✓ completed</span>
+                    {% else %}
+                    <span class="ta-badge ta-badge--warn">! {{ run.get("status") }}</span>
+                    {% endif %}
+                </td>
+
+                <td>{{ run.get("created_at") or "-" }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
     </div>
 
-    {% endfor %}
+    {% else %}
 
-    {% endwith %}
+    <p class="ta-note">
+        No analyses recorded yet. Upload a dataset to begin.
+    </p>
+
+    {% endif %}
+
+</section>
 
 
-    <!-- ================================================= -->
-    <!-- NEW PROJECT -->
-    <!-- ================================================= -->
+<section class="ta-card" aria-label="Create project">
 
-    <div class="card">
+    <h2>
+        Create New Project
+    </h2>
 
-        <h2>
-            Create New Project
-        </h2>
+    <form method="POST" action="/project/new">
 
-        <form method="POST" action="/project/new">
-
-            <label>
-                Project Name
-            </label>
-
+        <label>
+            Project Name
             <input
                 type="text"
                 name="name"
                 required
             >
+        </label>
 
-            <label>
-                Description (Optional)
-            </label>
-
+        <label>
+            Description (Optional)
             <textarea
                 name="description"
             ></textarea>
+        </label>
 
-            <button type="submit">
-                Create Project
-            </button>
+        <button type="submit" class="ta-btn">
+            Create Project
+        </button>
 
-        </form>
+    </form>
 
-    </div>
+</section>
 
 
-    <!-- ================================================= -->
-    <!-- PROJECTS -->
-    <!-- ================================================= -->
+<section class="ta-card" aria-label="Projects">
 
-    <div class="card">
+    <h2>
+        Your Projects
+    </h2>
 
-        <h2>
-            Your Projects
-        </h2>
+    {% if projects %}
 
-        {% if projects %}
+    <div class="ta-table-wrap" role="region" aria-label="Projects" tabindex="0">
 
         <table>
 
             <tr>
-                <th>Project</th>
-                <th>Description</th>
-                <th>Analysis Runs</th>
-                <th>Created</th>
+                <th scope="col">Project</th>
+                <th scope="col">Description</th>
+                <th scope="col">Analysis Runs</th>
+                <th scope="col">Created</th>
             </tr>
 
             {% for project in projects %}
@@ -255,42 +258,36 @@
 
         </table>
 
-        {% else %}
-
-        <p class="meta">
-            No projects yet. Create one to begin.
-        </p>
-
-        {% endif %}
-
     </div>
 
+    {% else %}
 
-    <!-- ================================================= -->
-    <!-- START ANALYSIS -->
-    <!-- ================================================= -->
+    <p class="ta-note">
+        No projects yet. Create one to begin.
+    </p>
 
-    <div class="card">
+    {% endif %}
 
-        <h2>
-            Start a New Analysis
-        </h2>
+</section>
 
-        <p>
-            Upload a dataset and run the full TaskAware
-            workflow: validation, EDA, target intelligence,
-            preprocessing, model/cluster evaluation,
-            explainability and reporting.
-        </p>
 
-        <a href="/upload">
-            <button>
-                Upload Dataset
-            </button>
-        </a>
+<section class="ta-card ta-card--glow" aria-label="Start analysis">
 
-    </div>
+    <h2>
+        Start a New Analysis
+    </h2>
 
-</body>
+    <p>
+        Upload a dataset and run the full TaskAware
+        workflow: validation, EDA, target intelligence,
+        preprocessing, model/cluster evaluation,
+        explainability and reporting.
+    </p>
 
-</html>
+    <a class="ta-btn" href="/upload">
+        Upload Dataset
+    </a>
+
+</section>
+
+{% endblock %}

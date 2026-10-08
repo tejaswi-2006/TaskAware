@@ -1,187 +1,126 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
+{% set layout = "landing" %}
+{% block title %}TaskAware — From Raw Data to Explainable Intelligence{% endblock %}
 
-<head>
+{% block content %}
 
-    <meta charset="UTF-8">
+{% include "_toggles.html" %}
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+<section class="ta-hero" aria-label="TaskAware introduction">
 
-    <title>TaskAware</title>
+    <div>
 
-    <style>
+        <h1 class="ta-hero-title">TASKAWARE</h1>
 
-        body {
-            font-family: "Segoe UI", Arial, sans-serif;
-            max-width: 900px;
-            margin: 60px auto;
-            padding: 20px;
-            line-height: 1.6;
-            color: #222;
-        }
-
-        h1 {
-            font-size: 42px;
-            margin-bottom: 5px;
-        }
-
-        .tagline {
-            color: #555;
-            font-size: 18px;
-            margin-bottom: 30px;
-        }
-
-        .card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 24px;
-            margin: 18px 0;
-        }
-
-        .features {
-            display: flex;
-            gap: 16px;
-            flex-wrap: wrap;
-        }
-
-        .feature {
-            flex: 1;
-            min-width: 220px;
-            border: 1px solid #eee;
-            border-radius: 8px;
-            padding: 16px;
-            background: #fafafa;
-        }
-
-        button {
-            padding: 12px 24px;
-            font-size: 16px;
-            cursor: pointer;
-            border: none;
-            border-radius: 4px;
-            background: #333;
-            color: #fff;
-        }
-
-        .ghost {
-            background: #fff;
-            color: #333;
-            border: 1px solid #333;
-        }
-
-    </style>
-
-    <link rel="stylesheet"
-          href="/static/css/taskaware.css">
-
-    <script src="/static/js/taskaware.js" defer></script>
-
-</head>
-
-
-<body class="ta-body">
-
-    <a class="ta-skip-link" href="#ta-main">
-        Skip to main content
-    </a>
-
-    {% include "_toggles.html" %}
-
-    <h1>
-        TaskAware
-    </h1>
-
-    <p class="tagline">
-        An intelligent end-to-end framework for automated
-        dataset analysis, ML task recommendation and
-        explainable machine learning.
-    </p>
-
-    <div class="card">
-
-        <p>
-            Upload a tabular dataset and TaskAware guides
-            you through the full workflow:
+        <p class="ta-hero-sub">
+            From Raw Data to Explainable Intelligence.
         </p>
 
-        <div class="features">
+        <p>
+            An intelligent end-to-end machine learning workspace
+            that understands your dataset, identifies the ML task,
+            prepares the data, recommends models, evaluates results
+            and explains predictions.
+        </p>
 
-            <div class="feature">
-                <strong>Understand</strong><br>
-                Validation and exploratory data analysis
-            </div>
+        <div class="ta-hero-cta">
 
-            <div class="feature">
-                <strong>Define</strong><br>
-                Target recommendation and problem-type
-                detection
-            </div>
+            <a class="ta-btn" href="/upload">
+                Start New Analysis
+            </a>
 
-            <div class="feature">
-                <strong>Model</strong><br>
-                Classification, regression or clustering
-                with leakage-safe preprocessing
-            </div>
+            {% if session.get("user_id") %}
+            <a class="ta-btn ta-btn--ghost" href="/dashboard">
+                Explore TaskAware
+            </a>
+            {% else %}
+            <a class="ta-btn ta-btn--ghost" href="/login">
+                Explore TaskAware
+            </a>
+            {% endif %}
 
-            <div class="feature">
-                <strong>Explain</strong><br>
-                SHAP, cluster profiles and AI-generated
-                interpretation
-            </div>
+        </div>
 
-            <div class="feature">
-                <strong>Report</strong><br>
-                Complete analytical report
-            </div>
+        <p class="ta-note">
+            Intelligent ML workflow • Explainable AI •
+            Automated Analysis
+        </p>
 
+    </div>
+
+    <div class="ta-pipeline-3d" role="img" aria-label="TaskAware pipeline: Dataset flows to Data Understanding, Target Intelligence, Preprocessing, Machine Learning and Explainability.">
+
+        <svg class="ta-pipe-svg" viewBox="0 0 360 430" aria-hidden="true">
+
+            <defs>
+                <linearGradient id="taPipeLine" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#2e4bf0" />
+                    <stop offset="1" stop-color="#7c5cff" />
+                </linearGradient>
+            </defs>
+
+            {% set _nodes = ["Dataset", "Data Understanding", "Target Intelligence", "Preprocessing", "Machine Learning", "Explainability"] %}
+            {% for _label in _nodes %}
+            {% set _y = 30 + loop.index0 * 66 %}
+            {% if not loop.first %}
+            <line x1="180" y1="{{ _y - 58 }}" x2="180" y2="{{ _y - 14 }}"
+                  stroke="url(#taPipeLine)" stroke-width="3"
+                  class="ta-pipe-flow" />
+            <circle cx="180" cy="{{ _y - 36 }}" r="4" fill="#2e4bf0"
+                    class="ta-particle" />
+            {% endif %}
+            <g class="ta-pipe-node">
+                <rect x="70" y="{{ _y - 14 }}" width="220" height="40" rx="12"
+                      fill="#ffffff" stroke="#2e4bf0" stroke-width="1.5" />
+                <text x="180" y="{{ _y + 11 }}" text-anchor="middle"
+                      font-size="14" font-weight="600" fill="#16213a">{{ _label }}</text>
+            </g>
+            {% endfor %}
+
+        </svg>
+
+    </div>
+
+</section>
+
+<section aria-label="Capabilities">
+
+    <h2>What TaskAware Does</h2>
+
+    <div class="ta-grid">
+
+        <div class="ta-card">
+            <h3>Dataset Intelligence</h3>
+            <p>Semantic profiling of every column: roles, quality and warnings.</p>
+        </div>
+
+        <div class="ta-card">
+            <h3>Target Intelligence</h3>
+            <p>Evidence-based target recommendation with explicit confirmation.</p>
+        </div>
+
+        <div class="ta-card">
+            <h3>Automated Preprocessing</h3>
+            <p>Leakage-safe pipelines for numeric, categorical, text and date data.</p>
+        </div>
+
+        <div class="ta-card">
+            <h3>Model Recommendation</h3>
+            <p>Compatible models compared with honest, explained selection.</p>
+        </div>
+
+        <div class="ta-card">
+            <h3>Explainable AI</h3>
+            <p>Beginner-first explanations with expandable technical depth.</p>
+        </div>
+
+        <div class="ta-card">
+            <h3>Knowledge Reuse</h3>
+            <p>Validated explanations stored and reused through OKF.</p>
         </div>
 
     </div>
 
-    <div class="card">
+</section>
 
-        {% if session.get("user_id") %}
-
-        <p>
-            Welcome back,
-            <strong>{{ session.get("username") }}</strong>.
-        </p>
-
-        <a href="/dashboard">
-            <button>
-                Go to Dashboard
-            </button>
-        </a>
-
-        &nbsp;
-
-        <a href="/upload">
-            <button class="ghost">
-                Start New Analysis
-            </button>
-        </a>
-
-        {% else %}
-
-        <a href="/login">
-            <button>
-                Log In
-            </button>
-        </a>
-
-        &nbsp;
-
-        <a href="/register">
-            <button class="ghost">
-                Create Account
-            </button>
-        </a>
-
-        {% endif %}
-
-    </div>
-
-</body>
-
-</html>
+{% endblock %}

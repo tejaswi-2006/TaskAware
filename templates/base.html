@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+{# TaskAware application shell: sidebar + topbar + content.
+   Optional context (all safe to omit):
+     layout: "app" (default) or "landing" (no sidebar)
+     page_title, nav_active, nav_states {key: state},
+     project_name, dataset_name, analysis_status #}
+<html lang="en" data-motion="full" data-view="rich" data-theme="light">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>{% block title %}TaskAware{% endblock %}</title>
+
+    <link rel="stylesheet"
+          href="/static/css/taskaware.css">
+
+    <script src="/static/js/taskaware.js" defer></script>
+
+    {% block extra_head %}{% endblock %}
+
+</head>
+
+
+<body class="ta-body">
+
+    <a class="ta-skip-link" href="#ta-main">
+        Skip to main content
+    </a>
+
+    {% set _landing = (layout|default("app") == "landing") %}
+
+        {% if not _landing %}
+
+        <aside class="ta-sidebar" aria-label="TaskAware navigation">
+
+            <div class="ta-brand" style="margin-bottom: 6px;">
+                TaskAware
+            </div>
+
+            {% set _states = nav_states if nav_states is defined and nav_states else {} %}
+            {% set _active = nav_active if nav_active is defined and nav_active else "" %}
+            {% macro side_item(key, label, icon, href=None) %}
+            {% set _st = _states.get(key, "todo") %}
+            {% set _is_active = (key == _active) %}
+            <li class="ta-side-item" data-state="{{ "active" if _is_active else _st }}">
+                {% if href %}
+                <a href="{{ href }}" {% if _is_active %}aria-current="page"{% endif %}>
+                    <span class="ta-side-icon" aria-hidden="true">{{ icon }}</span>
+                    <span>{{ label }}</span>
+                </a>
+                {% else %}
+                <span class="ta-side-icon" aria-hidden="true">{{ icon }}</span>
+                <span>{{ label }}
+                    <span class="ta-kbd-hint">
+                        {%- if _is_active %} (current)
+                        {%- elif _st == "done" %} (completed)
+                        {%- elif _st == "warning" %} (needs attention)
+                        {%- elif _st == "failed" %} (failed)
+                        {%- else %} (pending){% endif -%}
+                    </span>
+                </span>
+                {% endif %}
+            </li>
+            {% endmacro %}
+
+            <nav aria-label="Workspace">
+                <div class="ta-side-section">Workspace</div>
+                <ul>
+                    {{ side_item("overview", "Overview", "◈", "/dashboard") }}
+                    {{ side_item("dataset", "Dataset", "▤", "/upload") }}
+                </ul>
+            </nav>
+
+            <nav aria-label="Analysis">
+                <div class="ta-side-section">Analysis</div>
+                <ul>
+                    {{ side_item("objective", "Objective", "◎") }}
+                    {{ side_item("target", "Target Intelligence", "◉") }}
+                    {{ side_item("eda", "Detailed EDA", "▦") }}
+                    {{ side_item("preprocessing", "Preprocessing", "⚙") }}
+                    {{ side_item("features", "Feature Engineering", "⬡") }}
+                </ul>
+            </nav>
+
+            <nav aria-label="Machine Learning">
+                <div class="ta-side-section">Machine Learning</div>
+                <ul>
+                    {{ side_item("task", "Task Detection", "◈") }}
+                    {{ side_item("recommendation", "Model Recommendation", "✦") }}
+                    {{ side_item("training", "Model Training", "▶") }}
+                    {{ side_item("evaluation", "Evaluation", "✔") }}
+                </ul>
+            </nav>
+
+            <nav aria-label="Explainability">
+                <div class="ta-side-section">Explainability</div>
+                <ul>
+                    {{ side_item("importance", "Feature Importance", "𝌆") }}
+                    {{ side_item("shap", "SHAP Analysis", "∿") }}
+                    {{ side_item("insights", "AI Insights", "✧") }}
+                </ul>
+            </nav>
+
+            <nav aria-label="Knowledge">
+                <div class="ta-side-section">Knowledge</div>
+                <ul>
+                    {{ side_item("okf", "Knowledge Reuse", "⛁", "/okf") }}
+                </ul>
+            </nav>
+
+            <nav aria-label="Output">
+                <div class="ta-side-section">Output</div>
+                <ul>
+                    {{ side_item("results", "Final Results", "★") }}
+                    {{ side_item("reports", "Reports", "🗎") }}
+                </ul>
+            </nav>
+
+        </aside>
+
+        {% endif %}
+
+        <div class="ta-main-col">
+
+            {% if not _landing %}
+
+            <header class="ta-appbar">
+
+                <div class="ta-appbar-meta" aria-label="Current context">
+                    {% if project_name is defined and project_name %}
+                    <span><strong>Project:</strong> {{ project_name }}</span>
+                    {% endif %}
+                    {% if dataset_name is defined and dataset_name %}
+                    <span><strong>Dataset:</strong> {{ dataset_name }}</span>
+                    {% endif %}
+                    {% if analysis_status is defined and analysis_status %}
+                    <span><strong>Status:</strong> {{ analysis_status }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="ta-appbar-user">
+                    {% if session.get("user_id") %}
+                    <span>{{ session.get("username") }}</span>
+                    <a href="/logout">Logout</a>
+                    {% else %}
+                    <a href="/login">Login</a>
+                    {% endif %}
+                    {% include "_toggles.html" %}
+                </div>
+
+            </header>
+
+            {% endif %}
+
+            <main id="ta-main">
+                {% block content %}{% endblock %}
+            </main>
+
+        </div>
+
+    </div>
+
+    {% block extra_scripts %}{% endblock %}
+
+</body>
+
+</html>
