@@ -216,12 +216,24 @@
                 Final model features:
                 {{ training["n_transformed_features"] }}
                 {% endif %}
-                {% if training.get("used_group_split") %}
-                &nbsp;|&nbsp;
-                Group-aware split on
-                {{ training["used_group_split"] }}
-                {% endif %}
-            </p>
+            {% if training.get("used_group_split") %}
+            &nbsp;|&nbsp;
+            Group-aware split on
+            {{ training["used_group_split"] }}
+            {% endif %}
+        </p>
+
+        {% if training.get("row_info") and training["row_info"].get("rows_excluded_missing_target") %}
+
+        <p class="ta-warning-text">
+            <span class="ta-badge ta-badge--warn">! rows excluded</span>
+            {{ training["row_info"]["target_warning"] }}
+            ({{ training["row_info"]["rows_available_for_modeling"] }}
+            of {{ training["row_info"]["rows_uploaded"] }}
+            rows used for modelling.)
+        </p>
+
+        {% endif %}
 
             {% if problem_type == "Classification" %}
 

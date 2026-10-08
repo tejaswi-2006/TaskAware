@@ -1268,5 +1268,257 @@ class TestRFTrainingConfig(unittest.TestCase):
         )
 
 
+def make_missing_target_data(n=200, missing=2, regression=False):
+    rng = np.random.default_rng(4)
+
+    if regression:
+        target = rng.normal(50, 10, n)
+    else:
+        target = rng.choice([0, 1], n).astype(float)
+
+    target[[3, 17][:missing]] = np.nan
+
+    return pd.DataFrame({
+        "age": rng.integers(18, 70, n).astype(float),
+        "hours": rng.uniform(0, 30, n).round(2),
+        "label": target,
+    })
+
+
+class TestMissingTarget(unittest.TestCase):
+
+    def test_classification_missing_labels(self):
+        df = make_missing_target_data()
+        training = train_models(df, "label", "Classification")
+        row_info = training["row_info"]
+
+        self.assertEqual(row_info["rows_uploaded"], 200)
+        self.assertEqual(
+            row_info["rows_excluded_missing_target"], 2
+        )
+        self.assertEqual(
+            row_info["rows_available_for_modeling"], 198
+        )
+        self.assertEqual(row_info["target_missing_count"], 2)
+        self.assertIn("were excluded", row_info["target_warning"])
+        self.assertIn("not imputed", row_info["target_warning"])
+        self.assertEqual(
+            training["X_train_shape"][0]
+            + training["X_test_shape"][0],
+            198,
+        )
+        self.assertEqual(int(training["y_train"].isnull().sum()), 0)
+        self.assertEqual(int(training["y_test"].isnull().sum()), 0)
+        self.assertTrue(
+            all(m["cv_mean"] is not None
+                for m in training["results"])
+        )
+
+    def test_regression_missing_labels(self):
+        df = make_missing_target_data(
+            n=120, missing=2, regression=True
+        )
+        training = train_models(df, "label", "Regression")
+        row_info = training["row_info"]
+
+        self.assertEqual(row_info["rows_excluded_missing_target"], 2)
+        self.assertEqual(
+            row_info["rows_available_for_modeling"], 118
+        )
+        self.assertTrue(
+            all(m.get("rmse") is not None
+                for m in training["results"])
+        )
+
+    def test_no_missing_target(self):
+        df = pd.DataFrame({
+            "x": np.random.normal(0, 1, 80),
+            "y": [0, 1] * 40,
+        })
+        training = train_models(df, "y", "Classification")
+        row_info = training["row_info"]
+
+        self.assertEqual(row_info["rows_excluded_missing_target"], 0)
+        self.assertIsNone(row_info["target_warning"])
+        self.assertEqual(
+            row_info["rows_available_for_modeling"], 80
+        )
+
+    def test_all_target_missing_fails_clearly(self):
+        from modules.model_trainer import TaskAwareTrainingError
+
+        df = pd.DataFrame({
+            "x": np.random.normal(0, 1, 30),
+            "y": [np.nan] * 30,
+        })
+
+        with self.assertRaises(TaskAwareTrainingError):
+            train_models(df, "y", "Classification")
+
+    def test_no_nan_reaches_model_fit(self):
+        from sklearn.base import BaseEstimator, ClassifierMixin
+        from modules.model_trainer import train_and_evaluate
+        from modules.preprocessing import (
+            build_preprocessing_pipeline,
+        )
+
+        seen = {}
+
+        class _Recorder(BaseEstimator, ClassifierMixin):
+            def fit(self, X, y):
+                seen["y"] = pd.Series(y)
+                from sklearn.tree import DecisionTreeClassifier
+                self._inner = DecisionTreeClassifier(
+                    random_state=42
+                )
+                self._inner.fit(X, y)
+                return self
+
+            def predict(self, X):
+                return self._inner.predict(X)
+
+        df = make_missing_target_data(n=120, missing=2)
+        training = train_models(df, "label", "Classification")
+        schema = training["schema"]
+        preprocessor = build_preprocessing_pipeline(
+            schema["numerical_columns"],
+            schema["categorical_columns"],
+            schema["text_columns"],
+            boolean_columns=schema["boolean_columns"],
+            date_columns=schema["date_columns"],
+        )
+        train_and_evaluate(
+            training["X_train"],
+            training["y_train"],
+            training["X_test"],
+            training["y_test"],
+            {"name": "Recorder", "estimator": _Recorder(),
+             "supports_probability": False},
+            "Classification",
+            n_classes=2,
+            preprocessor=preprocessor,
+        )
+        self.assertEqual(int(seen["y"].isnull().sum()), 0)
+
+    def test_chronological_split_labels(self):
+        df = pd.DataFrame({
+            "day": pd.date_range("2023-01-01", periods=60,
+                                 freq="D").astype(str),
+            "x": list(range(60)),
+            "y": [0] * 30 + [1] * 30,
+        })
+        training = train_models(df, "y", "Classification")
+
+        self.assertTrue(training["used_chronological_split"])
+        # Test labels must come from the latest dates
+        # (all class 1 here), never repeat training rows.
+        self.assertEqual(training["y_test"].tolist(), [1] * 12)
+        self.assertTrue(
+            set(training["X_test"].index).isdisjoint(
+                set(training["X_train"].index)
+            )
+        )
+        self.assertEqual(
+            len(training["X_train"]) + len(training["X_test"]),
+            60,
+        )
+
+    def test_group_length_mismatch_fails(self):
+        from modules.model_trainer import (
+            _split_data,
+            TrainingValidationError,
+        )
+
+        df = pd.DataFrame({
+            "x": np.random.normal(0, 1, 40),
+            "y": [0, 1] * 20,
+        })
+        schema = analyze_schema(df, target_column="y")
+        X = df[["x"]]
+        y = pd.Series([0, 1] * 20)
+
+        with self.assertRaises(TrainingValidationError) as ctx:
+            _split_data(
+                X, y, "Classification", schema,
+                groups=pd.Series(["a", "b"] * 10),
+                group_column="g",
+            )
+
+        self.assertEqual(
+            ctx.exception.details["error_code"],
+            "MISALIGNED_GROUPS",
+        )
+
+    def test_prep_row_counts_consistent(self):
+        from modules.preprocessing import prepare_preprocessing
+
+        df = make_missing_target_data(n=100, missing=2)
+        prep = prepare_preprocessing(
+            df, "label", "Classification"
+        )
+
+        self.assertEqual(prep["n_rows"], 98)
+        self.assertEqual(prep["rows_uploaded"], 100)
+        self.assertEqual(
+            prep["row_info"]["rows_excluded_missing_target"], 2
+        )
+        self.assertIn(
+            "missing target rows excluded",
+            " ".join(prep["steps"]),
+        )
+
+    def test_expansion_warning(self):
+        from modules.preprocessing import prepare_preprocessing
+
+        df = pd.DataFrame({
+            "zip": [f"Z{i % 600:04d}" for i in range(1200)],
+            "y": [0, 1] * 600,
+        })
+        prep = prepare_preprocessing(df, "y", "Classification")
+
+        self.assertIsNotNone(
+            prep["preview"]["expansion_warning"]
+        )
+        self.assertIsNotNone(
+            prep["feature_accounting"]["expansion_warning"]
+        )
+
+        small = pd.DataFrame({
+            "zip": ["a", "b", "c"] * 20,
+            "y": [0, 1] * 30,
+        })
+        prep_small = prepare_preprocessing(
+            small, "y", "Classification"
+        )
+        self.assertIsNone(
+            prep_small["preview"]["expansion_warning"]
+        )
+
+    def test_api_fields_preserved(self):
+        df = pd.DataFrame({
+            "x": np.random.normal(0, 1, 80),
+            "y": [0, 1] * 40,
+        })
+        training = train_models(df, "y", "Classification")
+
+        for key in ("problem_type", "target_column",
+                    "target_info", "schema", "X_train_shape",
+                    "X_test_shape", "results", "models",
+                    "used_chronological_split",
+                    "used_group_split",
+                    "n_transformed_features",
+                    "feature_accounting", "row_info"):
+            self.assertIn(key, training)
+
+        row_info = training["row_info"]
+
+        for key in ("rows_uploaded",
+                    "rows_available_for_modeling",
+                    "rows_excluded_missing_target",
+                    "target_missing_count",
+                    "target_warning"):
+            self.assertIn(key, row_info)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -23,6 +23,7 @@ from sklearn.model_selection import (
 from modules.schema_analyzer import analyze_schema
 from modules.preprocessing import (
     build_preprocessing_pipeline,
+    drop_missing_target_rows,
     feature_accounting,
     prepare_target,
 )
@@ -39,6 +40,55 @@ class TaskAwareTrainingError(Exception):
     Raised when training cannot proceed. The message is
     user-facing and must never leak a raw traceback.
     """
+
+
+class TrainingValidationError(TaskAwareTrainingError):
+    """
+    Structured training failure carrying machine-readable
+    details (error_code, user_message, technical_message,
+    stage, target, problem_type, counts, selected_model,
+    suggested_action) in the .details dict.
+    """
+
+    def __init__(self, details):
+        self.details = dict(details)
+        super().__init__(details.get("user_message", ""))
+
+
+def training_failure(
+    error_code,
+    user_message,
+    technical_message="",
+    stage="model training",
+    target=None,
+    problem_type=None,
+    raw_feature_count=None,
+    transformed_feature_count=None,
+    train_rows=None,
+    validation_rows=None,
+    selected_model=None,
+    suggested_action=(
+        "Review the preprocessing configuration or try "
+        "another compatible model."
+    ),
+):
+    """
+    Build a structured TrainingValidationError.
+    """
+    return TrainingValidationError({
+        "error_code": error_code,
+        "user_message": user_message,
+        "technical_message": technical_message,
+        "stage": stage,
+        "target": target,
+        "problem_type": problem_type,
+        "raw_feature_count": raw_feature_count,
+        "transformed_feature_count": transformed_feature_count,
+        "train_rows": train_rows,
+        "validation_rows": validation_rows,
+        "selected_model": selected_model,
+        "suggested_action": suggested_action,
+    })
 
 
 # ============================================================
@@ -211,6 +261,19 @@ def cross_validate_model(
     When repeated-entity groups are provided, GroupKFold
     keeps each entity within a single fold.
     """
+    _assert_xy_consistent(
+        X,
+        y,
+        None,
+        problem_type,
+        "cross-validation",
+        selected_model=(
+            model_config.get("name")
+            if isinstance(model_config, dict)
+            else None
+        ),
+    )
+
     group_values = _group_values(groups)
 
     if group_values is not None and len(
@@ -334,6 +397,19 @@ def train_and_evaluate(
     on the training fold only, and evaluate on the test
     fold.
     """
+    _assert_xy_consistent(
+        X_train,
+        y_train,
+        None,
+        problem_type,
+        "training",
+        selected_model=(
+            model_config.get("name")
+            if isinstance(model_config, dict)
+            else None
+        ),
+    )
+
     if preprocessor is None:
         schema = analyze_schema(X_train)
         preprocessor = _build_preprocessor(schema)
@@ -476,39 +552,245 @@ def _describe_removed(schema, df):
     )
 
 
-def _validate_target(df, target_column):
+def _validate_target(df, target_column, problem_type=None,
+                     row_info=None):
     """
     Validate that the target is usable for supervised
-    learning.
+    learning. Missing target rows must already be
+    excluded; remaining labels must support the problem
+    type (at least two well-represented classes for
+    classification, enough rows for regression).
+
+    Failures raise TrainingValidationError (a
+    TaskAwareTrainingError) with structured details so
+    the UI can show a helpful message instead of a
+    traceback.
     """
+    row_info = row_info or {}
+
     if not target_column:
-        raise TaskAwareTrainingError(
-            "No target variable was provided."
+        raise training_failure(
+            "NO_TARGET",
+            "TaskAware could not train the selected model.",
+            technical_message="No target variable was provided.",
+            stage="target validation",
+            target=target_column,
+            problem_type=problem_type,
         )
 
     if target_column not in df.columns:
-        raise TaskAwareTrainingError(
-            f"Target '{target_column}' does not exist in "
-            "the dataset."
+        raise training_failure(
+            "UNKNOWN_TARGET",
+            "TaskAware could not train the selected model.",
+            technical_message=(
+                f"Target '{target_column}' does not exist "
+                "in the dataset."
+            ),
+            stage="target validation",
+            target=target_column,
+            problem_type=problem_type,
         )
 
     target = df[target_column].dropna()
 
     if len(target) == 0:
-        raise TaskAwareTrainingError(
-            "The target column contains no valid values."
+        raise training_failure(
+            "NO_VALID_TARGET",
+            "TaskAware could not train the selected model.",
+            technical_message=(
+                "The target column contains no valid values. "
+                "All rows were excluded because the target "
+                "is missing; TaskAware never imputes target "
+                "values."
+            ),
+            stage="target validation",
+            target=target_column,
+            problem_type=problem_type,
+            train_rows=row_info.get("rows_uploaded"),
+            validation_rows=row_info.get(
+                "rows_available_for_modeling"
+            ),
         )
 
     if target.nunique() <= 1:
-        raise TaskAwareTrainingError(
-            "The target column has no meaningful "
-            "variation."
+        raise training_failure(
+            "NO_VARIATION",
+            "TaskAware could not train the selected model.",
+            technical_message=(
+                "The target column has no meaningful variation."
+            ),
+            stage="target validation",
+            target=target_column,
+            problem_type=problem_type,
+            train_rows=int(len(target)),
+        )
+
+    if problem_type == "Classification":
+        counts = target.value_counts()
+
+        if len(counts) < 2 or int(counts.min()) < 2:
+            raise training_failure(
+                "INSUFFICIENT_CLASSES",
+                "TaskAware could not train the selected model.",
+                technical_message=(
+                    "Classification needs at least two "
+                    "classes with at least two labelled "
+                    "records each after missing-target "
+                    "exclusion."
+                ),
+                stage="target validation",
+                target=target_column,
+                problem_type=problem_type,
+                train_rows=int(len(target)),
+            )
+    elif problem_type == "Regression" and len(target) < 10:
+        raise training_failure(
+            "INSUFFICIENT_ROWS",
+            "TaskAware could not train the selected model.",
+            technical_message=(
+                f"Only {len(target)} labelled rows remain "
+                "after missing-target exclusion; regression "
+                "needs at least 10."
+            ),
+            stage="target validation",
+            target=target_column,
+            problem_type=problem_type,
+            train_rows=int(len(target)),
         )
 
 
 # ============================================================
 # SPLIT STRATEGY
 # ============================================================
+
+def _assert_xy_consistent(
+    X,
+    y,
+    target_column,
+    problem_type,
+    stage,
+    raw_feature_count=None,
+    selected_model=None,
+):
+    """
+    Validate the modelling frame before splitting, CV or
+    fitting: equal row counts, NaN-free target, enough
+    classes/rows. Raises TrainingValidationError.
+    """
+    n_x = int(len(X))
+    n_y = int(len(y))
+
+    if n_x != n_y:
+        raise training_failure(
+            "MISALIGNED_X_Y",
+            "TaskAware could not train the selected model.",
+            technical_message=(
+                f"Feature matrix has {n_x} rows but target "
+                f"has {n_y} rows."
+            ),
+            stage=stage,
+            target=target_column,
+            problem_type=problem_type,
+            raw_feature_count=raw_feature_count,
+            train_rows=n_x,
+            validation_rows=n_y,
+            selected_model=selected_model,
+        )
+
+    try:
+        n_missing = int(pd.Series(y).isnull().sum())
+    except Exception:
+        n_missing = 0
+
+    if n_missing:
+        raise training_failure(
+            "NAN_TARGET",
+            "TaskAware could not train the selected model.",
+            technical_message=(
+                f"Target contains {n_missing} missing values "
+                f"at the {stage} stage. Missing target rows "
+                f"must be excluded before training."
+            ),
+            stage=stage,
+            target=target_column,
+            problem_type=problem_type,
+            raw_feature_count=raw_feature_count,
+            selected_model=selected_model,
+        )
+
+    if problem_type == "Classification":
+        try:
+            counts = pd.Series(y).value_counts()
+        except Exception:
+            counts = pd.Series(dtype=int)
+
+        if len(counts) < 2 or int(counts.min()) < 2:
+            raise training_failure(
+                "INSUFFICIENT_CLASSES",
+                "TaskAware could not train the selected model.",
+                technical_message=(
+                    "Classification needs at least two "
+                    "classes with at least two labelled "
+                    "records each after missing-target "
+                    "exclusion."
+                ),
+                stage=stage,
+                target=target_column,
+                problem_type=problem_type,
+                raw_feature_count=raw_feature_count,
+                train_rows=n_x,
+                selected_model=selected_model,
+            )
+    elif n_x < 10:
+        raise training_failure(
+            "INSUFFICIENT_ROWS",
+            "TaskAware could not train the selected model.",
+            technical_message=(
+                f"Only {n_x} labelled rows remain after "
+                f"missing-target exclusion; regression "
+                f"needs at least 10."
+            ),
+            stage=stage,
+            target=target_column,
+            problem_type=problem_type,
+            raw_feature_count=raw_feature_count,
+            train_rows=n_x,
+            selected_model=selected_model,
+        )
+
+
+def _assert_split_consistent(
+    X,
+    y,
+    train_idx,
+    test_idx,
+    target_column,
+    problem_type,
+    stage,
+):
+    """
+    Validate positional split indices against X/y.
+    """
+    n = int(len(X))
+
+    for name, idx in (("train", train_idx), ("test", test_idx)):
+        try:
+            size = int(len(idx))
+            assert max(idx) < n and min(idx) >= 0
+        except Exception:
+            raise training_failure(
+                "MISALIGNED_SPLIT",
+                "TaskAware could not train the selected model.",
+                technical_message=(
+                    f"Invalid {name} indices for a {n}-row "
+                    f"frame at the {stage} stage."
+                ),
+                stage=stage,
+                target=target_column,
+                problem_type=problem_type,
+                train_rows=n,
+            )
+
 
 def _split_groups(df, X, schema):
     """
@@ -559,6 +841,17 @@ def _split_data(
     Returns (splits, info) where info carries
     {"chronological": bool, "group": column or None}.
     """
+    _assert_xy_consistent(
+        X,
+        y,
+        schema.get("target_column"),
+        problem_type,
+        "split",
+        raw_feature_count=(
+            int(X.shape[1]) if hasattr(X, "shape") else None
+        ),
+    )
+
     if schema["is_time_series"] and schema["time_column"]:
 
         time_col = schema["time_column"]
@@ -587,11 +880,18 @@ def _split_data(
                 train_idx = idx[:split]
                 test_idx = idx[split:]
 
+                _assert_split_consistent(
+                    X, y, train_idx, test_idx,
+                    target_column=None,
+                    problem_type=problem_type,
+                    stage="chronological split",
+                )
+
                 return (
                     X.iloc[train_idx],
                     X.iloc[test_idx],
                     y.iloc[train_idx],
-                    y.iloc[train_idx],
+                    y.iloc[test_idx],
                 ), {
                     "chronological": True,
                     "group": None,
@@ -600,6 +900,18 @@ def _split_data(
     group_values = _group_values(groups)
 
     if group_values is not None:
+        if len(group_values) != len(X):
+            raise training_failure(
+                "MISALIGNED_GROUPS",
+                "TaskAware could not train the selected model.",
+                technical_message=(
+                    f"Group labels ({len(group_values)}) do "
+                    f"not match feature rows ({len(X)})."
+                ),
+                stage="group split",
+                target=schema.get("target_column"),
+                problem_type=problem_type,
+            )
         try:
             splitter = GroupShuffleSplit(
                 n_splits=1,
@@ -611,6 +923,13 @@ def _split_data(
                 splitter.split(X, y, groups=group_values)
             )
 
+            _assert_split_consistent(
+                X, y, train_idx, test_idx,
+                schema.get("target_column"),
+                problem_type,
+                "group split",
+            )
+
             return (
                 X.iloc[train_idx],
                 X.iloc[test_idx],
@@ -620,6 +939,8 @@ def _split_data(
                 "chronological": False,
                 "group": group_column,
             }
+        except TrainingValidationError:
+            raise
         except Exception:
             pass
 
@@ -637,6 +958,16 @@ def _split_data(
             random_state=42,
         )
 
+    if len(X_tr) + len(X_te) != len(X):
+        raise training_failure(
+            "MISALIGNED_SPLIT",
+            "TaskAware could not train the selected model.",
+            technical_message="Train/test split lost rows.",
+            stage="split",
+            target=schema.get("target_column"),
+            problem_type=problem_type,
+        )
+
     return (X_tr, X_te, y_tr, y_te), {
         "chronological": False,
         "group": None,
@@ -649,8 +980,10 @@ def _split_data(
 
 def _prepare_data(df, target_column, problem_type):
     """
-    Split the dataset into feature matrix X and target y
-    using the central schema.
+    Build the single target-cleaned modelling dataset:
+    rows with a missing target are removed (never
+    imputed) before anything else. The original frame is
+    untouched; callers keep it for reporting and EDA.
     """
     schema = analyze_schema(
         df,
@@ -658,14 +991,31 @@ def _prepare_data(df, target_column, problem_type):
     )
 
     _validate_features(schema, df)
-    _validate_target(df, target_column)
 
-    X = df[schema["feature_columns"]]
+    df_model, row_info = drop_missing_target_rows(
+        df, target_column
+    )
+
+    _validate_target(
+        df_model, target_column, problem_type,
+        row_info=row_info,
+    )
+
+    X = df_model[schema["feature_columns"]]
 
     y, target_info = prepare_target(
-        df,
+        df_model,
         target_column,
         problem_type,
+    )
+
+    _assert_xy_consistent(
+        X,
+        y,
+        target_column,
+        problem_type,
+        "preparation",
+        raw_feature_count=len(schema["feature_columns"]),
     )
 
     return {
@@ -673,6 +1023,8 @@ def _prepare_data(df, target_column, problem_type):
         "y": y,
         "target_info": target_info,
         "schema": schema,
+        "row_info": row_info,
+        "df_model": df_model,
     }
 
 
@@ -699,9 +1051,13 @@ def run_classification(
     y = roles_result["y"]
     target_info = roles_result["target_info"]
     schema = roles_result["schema"]
+    row_info = roles_result["row_info"]
 
+    # Group labels must come from the cleaned modelling
+    # frame: its reset index matches X, while the original
+    # frame still contains the excluded rows.
     split_groups, split_group_column = _split_groups(
-        df, X, schema
+        roles_result["df_model"], X, schema
     )
 
     (X_train, X_test, y_train, y_test), split_info = _split_data(
@@ -801,11 +1157,13 @@ def run_classification(
         "used_group_split": split_info["group"],
         "n_transformed_features": n_transformed,
         "preprocessing_seconds": preprocessing_seconds,
+        "row_info": row_info,
         "feature_accounting": feature_accounting(
             df,
             target_column,
             schema,
             {"features_after": n_transformed},
+            row_info=row_info,
         ),
         "X_train": X_train,
         "y_train": y_train,
@@ -836,9 +1194,13 @@ def run_regression(
     y = roles_result["y"]
     target_info = roles_result["target_info"]
     schema = roles_result["schema"]
+    row_info = roles_result["row_info"]
 
+    # Group labels must come from the cleaned modelling
+    # frame: its reset index matches X, while the original
+    # frame still contains the excluded rows.
     split_groups, split_group_column = _split_groups(
-        df, X, schema
+        roles_result["df_model"], X, schema
     )
 
     (X_train, X_test, y_train, y_test), split_info = _split_data(
@@ -933,11 +1295,13 @@ def run_regression(
         "used_group_split": split_info["group"],
         "n_transformed_features": n_transformed,
         "preprocessing_seconds": preprocessing_seconds,
+        "row_info": row_info,
         "feature_accounting": feature_accounting(
             df,
             target_column,
             schema,
             {"features_after": n_transformed},
+            row_info=row_info,
         ),
         "X_train": X_train,
         "y_train": y_train,
@@ -1023,9 +1387,13 @@ def train_named_model(
     y = roles_result["y"]
     target_info = roles_result["target_info"]
     schema = roles_result["schema"]
+    row_info = roles_result["row_info"]
 
+    # Group labels must come from the cleaned modelling
+    # frame: its reset index matches X, while the original
+    # frame still contains the excluded rows.
     split_groups, split_group_column = _split_groups(
-        df, X, schema
+        roles_result["df_model"], X, schema
     )
 
     (X_train, X_test, y_train, y_test), split_info = _split_data(
@@ -1076,4 +1444,5 @@ def train_named_model(
         "preprocessor": preprocessor,
         "used_chronological_split": split_info["chronological"],
         "used_group_split": split_info["group"],
+        "row_info": row_info,
     }

@@ -260,6 +260,7 @@ def collect_report_data(
             "explanation_top_features": (
                 explanation_top_features
             ),
+            "row_info": training.get("row_info"),
         }
 
         if selected_model and not best:
@@ -317,6 +318,24 @@ def collect_report_data(
         }
         for record in schema["columns"]
     ]
+
+    # ------------------------------------------------
+    # MODELING ROWS (missing-target exclusion)
+    # ------------------------------------------------
+
+    _model_row_info = (
+        (model_results or {}).get("row_info") or {}
+    )
+
+    data_quality["rows_available_for_modeling"] = (
+        _model_row_info.get("rows_available_for_modeling", rows)
+    )
+    data_quality["rows_excluded_missing_target"] = (
+        _model_row_info.get("rows_excluded_missing_target", 0)
+    )
+    data_quality["target_warning"] = _model_row_info.get(
+        "target_warning"
+    )
 
     # ------------------------------------------------
     # REPORT

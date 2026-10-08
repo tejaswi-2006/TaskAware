@@ -182,6 +182,23 @@
                             </td>
                         </tr>
 
+                        <tr>
+                            <td><strong>Rows Available for Modelling</strong></td>
+                            <td>
+                                {{ report["data_quality"].get("rows_available_for_modeling", report["data_quality"]["rows"]) }}
+                                {% if report["data_quality"].get("rows_excluded_missing_target") %}
+                                <span class="ta-badge ta-badge--warn">! {{ report["data_quality"]["rows_excluded_missing_target"] }} excluded (missing target)</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        {% if report["data_quality"].get("target_warning") %}
+                        <tr>
+                            <td><strong>Target Note</strong></td>
+                            <td>{{ report["data_quality"]["target_warning"] }}</td>
+                        </tr>
+                        {% endif %}
+
                         {% if report["data_quality"].get("duplicate_check_warning") %}
                         <tr>
                             <td><strong>Duplicate Check Note</strong></td>

@@ -440,6 +440,21 @@
                     </tr>
 
                     <tr>
+                        <td>Rows uploaded</td>
+                        <td>{{ fa.get("rows_uploaded", prep.get("rows_uploaded")) }}</td>
+                    </tr>
+
+                    <tr>
+                        <td>Rows available for modelling</td>
+                        <td>{{ fa.get("rows_available_for_modeling", prep.get("n_rows")) }}</td>
+                    </tr>
+
+                    <tr>
+                        <td>Rows excluded (missing target)</td>
+                        <td>{{ fa.get("rows_excluded_missing_target", 0) }}</td>
+                    </tr>
+
+                    <tr>
                         <td>Raw feature columns</td>
                         <td>{{ fa["raw_feature_columns"] }}</td>
                     </tr>
@@ -496,6 +511,24 @@
                 </table>
 
             </div>
+
+            {% if fa.get("target_warning") %}
+
+            <p class="ta-warning-text">
+                <span class="ta-badge ta-badge--warn">! rows excluded</span>
+                {{ fa["target_warning"] }}
+            </p>
+
+            {% endif %}
+
+            {% if fa.get("expansion_warning") %}
+
+            <p class="ta-warning-text">
+                <span class="ta-badge ta-badge--warn">! wide matrix</span>
+                {{ fa["expansion_warning"] }}
+            </p>
+
+            {% endif %}
 
             {% endif %}
 

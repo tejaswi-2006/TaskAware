@@ -23,7 +23,12 @@ from modules.decision_engine import decide_route
 from modules.detailed_eda import perform_detailed_eda
 from modules.preprocessing import prepare_preprocessing
 from modules.feature_selection import perform_feature_selection
-from modules.model_trainer import train_models, train_named_model, TaskAwareTrainingError
+from modules.model_trainer import (
+    train_models,
+    train_named_model,
+    TaskAwareTrainingError,
+    TrainingValidationError,
+)
 from modules.model_selector import select_best_model
 from modules.clustering import perform_clustering
 from modules.explainability import perform_explainability
@@ -1911,7 +1916,53 @@ def model_training():
             problem_type
         )
 
+    except TrainingValidationError as e:
+
+        app.logger.exception(
+            "Training validation failed for %s (target=%s)",
+            filename,
+            target_column,
+        )
+
+        details = e.details
+        lines = [
+            "TaskAware could not train the selected model.",
+            "",
+            "Stage:",
+            str(details.get("stage", "model training")),
+            "",
+            "Likely cause:",
+            str(details.get(
+                "technical_message"
+            ) or details.get("user_message", "")),
+            "",
+            "Current information:",
+            f"- Problem type: "
+            f"{details.get('problem_type') or problem_type}",
+            f"- Target: "
+            f"{details.get('target') or target_column}",
+            f"- Raw features: "
+            f"{details.get('raw_feature_count', '-')}",
+            f"- Transformed features: "
+            f"{details.get('transformed_feature_count', '-')}",
+            f"- Training rows: "
+            f"{details.get('train_rows', '-')}",
+            f"- Validation rows: "
+            f"{details.get('validation_rows', '-')}",
+            "",
+            "Suggested action:",
+            str(details.get("suggested_action", "")),
+        ]
+
+        return "<br>".join(lines)
+
     except Exception as e:
+
+        app.logger.exception(
+            "Model training failed for %s (target=%s)",
+            filename,
+            target_column,
+        )
 
         return (
             "Unable to train models: "

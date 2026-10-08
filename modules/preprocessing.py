@@ -31,6 +31,65 @@ from modules.schema_analyzer import analyze_schema
 
 
 # ============================================================
+# MISSING-TARGET ROW HANDLING
+# ============================================================
+
+def drop_missing_target_rows(df, target_column):
+    """
+    Create the modelling dataset by removing rows whose
+    selected target is missing.
+
+    Missing target values are NEVER imputed: a row without
+    a label cannot teach a supervised model anything.
+
+    The original dataset is left unchanged; callers keep it
+    for reporting and EDA and use the cleaned frame for
+    preprocessing, splitting, training and evaluation.
+
+    Returns (df_clean, row_info) where row_info carries
+    rows_uploaded, rows_available_for_modeling,
+    rows_excluded_missing_target, target_missing_count and
+    target_warning (None when nothing was excluded).
+    """
+    rows_uploaded = int(len(df))
+
+    if not target_column or target_column not in df.columns:
+        return df, {
+            "rows_uploaded": rows_uploaded,
+            "rows_available_for_modeling": rows_uploaded,
+            "rows_excluded_missing_target": 0,
+            "target_missing_count": 0,
+            "target_warning": None,
+        }
+
+    mask = df[target_column].isnull()
+    excluded = int(mask.sum())
+
+    if excluded == 0:
+        return df, {
+            "rows_uploaded": rows_uploaded,
+            "rows_available_for_modeling": rows_uploaded,
+            "rows_excluded_missing_target": 0,
+            "target_missing_count": 0,
+            "target_warning": None,
+        }
+
+    cleaned = df.loc[~mask].reset_index(drop=True)
+
+    return cleaned, {
+        "rows_uploaded": rows_uploaded,
+        "rows_available_for_modeling": int(len(cleaned)),
+        "rows_excluded_missing_target": excluded,
+        "target_missing_count": excluded,
+        "target_warning": (
+            f"{excluded} rows were excluded because the "
+            f"selected target contains missing values. "
+            f"Target values were not imputed."
+        ),
+    }
+
+
+# ============================================================
 # TEXT COLUMN DETECTION (kept for backward compatibility)
 # ============================================================
 
@@ -603,6 +662,14 @@ def prepare_preprocessing(
     if problem_type == "Clustering":
         target_column = None
 
+    # Modelling rows exclude missing-target records. The
+    # original frame is preserved for reporting; the
+    # preview and counts below use the cleaned frame so
+    # row counts stay consistent with training.
+    df_model, row_info = drop_missing_target_rows(
+        df, target_column
+    )
+
     if schema is None:
         schema = analyze_schema(
             df,
@@ -624,22 +691,28 @@ def prepare_preprocessing(
     )
 
     missing_summary = missing_value_summary(
-        df,
+        df_model,
         schema["feature_columns"],
         schema=schema,
     )
 
     target, target_info = prepare_target(
-        df,
+        df_model,
         target_column,
         problem_type
     )
 
     preview = preview_transformation(
-        df,
+        df_model,
         pipeline,
         schema["feature_columns"],
     )
+
+    _expansion_estimate, _expansion_warning = (
+        _categorical_expansion_estimate(preview, schema)
+    )
+    preview["categorical_expansion_estimate"] = _expansion_estimate
+    preview["expansion_warning"] = _expansion_warning
 
     # Describe the actual steps used
     steps = []
@@ -699,9 +772,12 @@ def prepare_preprocessing(
 
     if target_column:
         steps.append(
-            "Target handled separately from feature "
-            "preprocessing"
+            "Target handled separately; missing target rows "
+            "excluded; target encoded for modelling"
         )
+
+        if row_info["rows_excluded_missing_target"]:
+            steps.append(row_info["target_warning"])
 
     else:
         steps.append(
@@ -726,7 +802,9 @@ def prepare_preprocessing(
         "target_info": target_info,
         "preview": preview,
         "steps": steps,
-        "n_rows": len(df),
+        "n_rows": row_info["rows_available_for_modeling"],
+        "rows_uploaded": row_info["rows_uploaded"],
+        "row_info": row_info,
         "has_missing": any(
             item["missing_count"] > 0
             for item in missing_summary
@@ -736,8 +814,53 @@ def prepare_preprocessing(
             target_column,
             schema,
             preview,
+            row_info=row_info,
         ),
     }
+
+
+EXPANSION_WARNING_THRESHOLD = 500
+
+
+def _categorical_expansion_estimate(preview, schema):
+    """
+    Estimate how many transformed features come from
+    categorical one-hot expansion (total minus TF-IDF
+    terms minus 1:1 numeric/boolean and 5-per-date
+    features). Returns (estimate, warning_or_None).
+    """
+    if not preview:
+        return 0, None
+
+    total = int(preview.get("features_after", 0))
+    names = preview.get("feature_names", []) or []
+    text_columns = set(schema.get("text_columns", []))
+
+    tfidf_terms = sum(
+        1 for name in names
+        if ":" in str(name)
+        and str(name).split(":", 1)[0] in text_columns
+    )
+
+    estimate = (
+        total
+        - tfidf_terms
+        - len(schema.get("numerical_columns", []))
+        - len(schema.get("boolean_columns", []))
+        - 5 * len(schema.get("date_columns", []))
+    )
+    estimate = max(0, int(estimate))
+
+    if estimate >= EXPANSION_WARNING_THRESHOLD:
+        return estimate, (
+            f"Categorical expansion created about "
+            f"{estimate} transformed features. One-hot "
+            f"encoding of high-cardinality columns inflates "
+            f"the feature matrix; consider rare-category "
+            f"grouping or frequency encoding."
+        )
+
+    return estimate, None
 
 
 def feature_accounting(
@@ -745,6 +868,7 @@ def feature_accounting(
     target_column,
     schema,
     preview,
+    row_info=None,
 ):
     """
     Consistent feature-count accounting shared by
@@ -758,6 +882,19 @@ def feature_accounting(
     usable = list(schema.get("feature_columns", []))
     transformed = int(
         (preview or {}).get("features_after", 0)
+    )
+
+    if row_info is None:
+        row_info = {
+            "rows_uploaded": int(len(df)),
+            "rows_available_for_modeling": int(len(df)),
+            "rows_excluded_missing_target": 0,
+            "target_missing_count": 0,
+            "target_warning": None,
+        }
+
+    expansion_estimate, expansion_warning = (
+        _categorical_expansion_estimate(preview, schema)
     )
 
     return {
@@ -787,4 +924,15 @@ def feature_accounting(
         ),
         "features_removed_by_selection": 0,
         "final_model_features": transformed,
+        "rows_uploaded": row_info["rows_uploaded"],
+        "rows_available_for_modeling": row_info[
+            "rows_available_for_modeling"
+        ],
+        "rows_excluded_missing_target": row_info[
+            "rows_excluded_missing_target"
+        ],
+        "target_missing_count": row_info["target_missing_count"],
+        "target_warning": row_info["target_warning"],
+        "categorical_expansion_estimate": expansion_estimate,
+        "expansion_warning": expansion_warning,
     }
