@@ -1037,5 +1037,236 @@ class TestAnalyticsUI(unittest.TestCase):
                 os.remove(path)
 
 
+class TestRFTrainingConfig(unittest.TestCase):
+
+    ENV_VARS = (
+        "TASKAWARE_RF_TREES",
+        "TASKAWARE_RF_JOBS",
+        "TASKAWARE_SLOW_MODEL_SECONDS",
+    )
+
+    def setUp(self):
+        from modules import model_recommender
+
+        self._saved = {
+            key: os.environ.get(key) for key in self.ENV_VARS
+        }
+
+        for key in self.ENV_VARS:
+            os.environ.pop(key, None)
+
+        import importlib
+        importlib.reload(model_recommender)
+        self.recommender = model_recommender
+
+    def tearDown(self):
+        for key, value in self._saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+        import importlib
+        from modules import model_recommender
+        importlib.reload(model_recommender)
+
+    def test_defaults_retained(self):
+        config = self.recommender.resolve_rf_config()
+        self.assertEqual(config["n_estimators"], 100)
+        self.assertEqual(config["n_jobs"], -1)
+        self.assertEqual(config["warnings"], [])
+        self.assertFalse(config["overridden"])
+
+    def test_environment_overrides(self):
+        os.environ["TASKAWARE_RF_TREES"] = "50"
+        os.environ["TASKAWARE_RF_JOBS"] = "2"
+        config = self.recommender.resolve_rf_config()
+        self.assertEqual(config["n_estimators"], 50)
+        self.assertEqual(config["n_jobs"], 2)
+        self.assertTrue(config["overridden"])
+
+    def test_invalid_values_fall_back_visibly(self):
+        for var, bad in [
+            ("TASKAWARE_RF_TREES", "0"),
+            ("TASKAWARE_RF_TREES", "-3"),
+            ("TASKAWARE_RF_TREES", "abc"),
+            ("TASKAWARE_RF_TREES", "10.5"),
+            ("TASKAWARE_RF_JOBS", "0"),
+            ("TASKAWARE_RF_JOBS", "-5"),
+            ("TASKAWARE_RF_JOBS", "many"),
+            ("TASKAWARE_RF_JOBS", "2.0"),
+        ]:
+            with self.subTest(var=var, value=bad):
+                os.environ.pop("TASKAWARE_RF_TREES", None)
+                os.environ.pop("TASKAWARE_RF_JOBS", None)
+                os.environ[var] = bad
+                config = self.recommender.resolve_rf_config()
+
+                if var == "TASKAWARE_RF_TREES":
+                    self.assertEqual(config["n_estimators"], 100)
+                else:
+                    self.assertEqual(config["n_jobs"], -1)
+
+                self.assertTrue(
+                    any(var in warning
+                        for warning in config["warnings"])
+                )
+
+    def test_empty_string_means_unset(self):
+        # An explicitly empty variable behaves like an
+        # unset one: silent defaults, no warning.
+        os.environ["TASKAWARE_RF_TREES"] = ""
+        os.environ["TASKAWARE_RF_JOBS"] = "   "
+        config = self.recommender.resolve_rf_config()
+        self.assertEqual(config["n_estimators"], 100)
+        self.assertEqual(config["n_jobs"], -1)
+        self.assertEqual(config["warnings"], [])
+
+    def test_override_reaches_estimator(self):
+        os.environ["TASKAWARE_RF_TREES"] = "17"
+        schema = analyze_schema(
+            pd.DataFrame({
+                "x": np.random.normal(0, 1, 40),
+                "y": [0, 1] * 20,
+            }),
+            target_column="y",
+        )
+        from modules.model_recommender import recommend_models
+
+        models = recommend_models(schema, "Classification")
+        forest = next(
+            m for m in models if m["name"] == "Random Forest"
+        )
+        params = forest["estimator"].get_params()
+        self.assertEqual(params["n_estimators"], 17)
+
+    def test_timing_fields_present(self):
+        df = pd.DataFrame({
+            "x": np.random.normal(0, 1, 120),
+            "y": [0, 1] * 60,
+        })
+        training = train_models(df, "y", "Classification")
+
+        self.assertIn("preprocessing_seconds", training)
+        self.assertIsInstance(
+            training["preprocessing_seconds"], float
+        )
+
+        for result in training["results"]:
+            self.assertIn("cv_seconds", result)
+            self.assertIn("train_seconds", result)
+            self.assertIn("predict_seconds", result)
+            self.assertIn("warning", result)
+
+    def test_rf_warning_behavior(self):
+        from modules.model_trainer import rf_slow_warning
+
+        warning = rf_slow_warning(
+            "Random Forest", 5000, 35, 100, -1, 5,
+            fit_seconds=1.0, cv_seconds=400.0,
+            threshold_seconds=300.0,
+        )
+        self.assertIsNotNone(warning)
+
+        for token in ["Random Forest", "5000", "100", "5",
+                      "-1"]:
+            self.assertIn(token, warning)
+
+        self.assertIsNone(
+            rf_slow_warning(
+                "Random Forest", 5000, 35, 100, -1, 5,
+                fit_seconds=1.0, cv_seconds=4.0,
+                threshold_seconds=300.0,
+            )
+        )
+        self.assertIsNone(
+            rf_slow_warning(
+                "Logistic Regression", 5000, 35, None,
+                None, 5, fit_seconds=999.0,
+                cv_seconds=999.0,
+                threshold_seconds=300.0,
+            )
+        )
+
+    def test_successful_rf_evaluation(self):
+        df = pd.DataFrame({
+            "x": np.random.normal(0, 1, 120),
+            "y": [0, 1] * 60,
+        })
+        training = train_models(df, "y", "Classification")
+        forest = next(
+            r for r in training["results"]
+            if r["name"] == "Random Forest"
+        )
+        self.assertIsNotNone(forest["cv_mean"])
+        self.assertIsNone(forest["warning"])
+        self.assertGreaterEqual(forest["cv_seconds"], 0)
+
+    def test_failed_cv_reports_error(self):
+        from sklearn.base import BaseEstimator, ClassifierMixin
+
+        from modules.model_trainer import cross_validate_model
+        from modules.preprocessing import (
+            build_preprocessing_pipeline,
+        )
+
+        class _AlwaysFails(BaseEstimator, ClassifierMixin):
+            def fit(self, X, y):
+                raise RuntimeError("synthetic fit failure")
+
+            def predict(self, X):
+                raise RuntimeError("synthetic fit failure")
+
+        df = pd.DataFrame({
+            "x": np.random.normal(0, 1, 60),
+        })
+        y = pd.Series([0, 1] * 30)
+        schema = analyze_schema(df.assign(y=y), target_column="y")
+        preprocessor = build_preprocessing_pipeline(
+            schema["numerical_columns"],
+            schema["categorical_columns"],
+            schema["text_columns"],
+            boolean_columns=schema["boolean_columns"],
+            date_columns=schema["date_columns"],
+        )
+        result = cross_validate_model(
+            preprocessor,
+            df,
+            y,
+            {"name": "Broken", "estimator": _AlwaysFails()},
+            "Classification",
+        )
+        self.assertIsNone(result["mean"])
+        self.assertTrue(result["error"])
+        self.assertGreaterEqual(result["cv_seconds"], 0)
+
+    def test_backward_compatible_keys(self):
+        df = pd.DataFrame({
+            "x": np.random.normal(0, 1, 120),
+            "y": [0, 1] * 60,
+        })
+        training = train_models(df, "y", "Classification")
+
+        for key in ("problem_type", "target_column",
+                    "target_info", "schema", "X_train_shape",
+                    "X_test_shape", "results", "models",
+                    "used_chronological_split",
+                    "used_group_split",
+                    "n_transformed_features",
+                    "feature_accounting"):
+            self.assertIn(key, training)
+
+        for result in training["results"]:
+            for key in ("name", "cv_mean", "cv_std",
+                        "cv_folds", "compatible_reason",
+                        "accuracy", "f1"):
+                self.assertIn(key, result)
+
+        mapping = training["target_info"]["mapping"]
+        self.assertTrue(
+            all(isinstance(k, str) for k in mapping)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

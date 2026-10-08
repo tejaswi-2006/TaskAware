@@ -84,6 +84,89 @@ def _make_cv(problem_type, X, y=None):
     )
 
 
+def _slow_threshold_seconds():
+    """
+    Optional TASKAWARE_SLOW_MODEL_SECONDS threshold above
+    which a per-model timing warning is recorded.
+    Defaults to 300; invalid values fall back to 300.
+    """
+    import os
+
+    raw = os.environ.get("TASKAWARE_SLOW_MODEL_SECONDS")
+
+    if raw is None or str(raw).strip() == "":
+        return 300.0
+
+    try:
+        value = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return 300.0
+
+    if value <= 0:
+        return 300.0
+
+    return value
+
+
+def rf_slow_warning(
+    model_name,
+    n_rows,
+    n_features,
+    n_trees,
+    n_jobs,
+    cv_folds,
+    fit_seconds=None,
+    cv_seconds=None,
+    threshold_seconds=None,
+):
+    """
+    Explicit warning when a Random Forest evaluation took
+    unusually long. Returns None when everything is within
+    budget. Never skips or alters the evaluation itself.
+    """
+    if model_name != "Random Forest":
+        return None
+
+    if threshold_seconds is None:
+        threshold_seconds = _slow_threshold_seconds()
+
+    slowest = None
+
+    for label, seconds in (
+        ("fit", fit_seconds),
+        ("cross-validation", cv_seconds),
+    ):
+        if seconds is None:
+            continue
+
+        try:
+            value = float(seconds)
+        except (TypeError, ValueError):
+            continue
+
+        if value >= threshold_seconds and (
+            slowest is None or value > slowest[1]
+        ):
+            slowest = (label, value)
+
+    if slowest is None:
+        return None
+
+    label, value = slowest
+
+    return (
+        f"{model_name} {label} took {value:.1f}s on "
+        f"{n_rows} rows x {n_features} features "
+        f"(trees={n_trees}, cv_folds={cv_folds}, "
+        f"jobs={n_jobs}). Tree ensembles scale with "
+        f"rows, features and tree count; cross-validation "
+        f"repeats the fit per fold and spawns parallel "
+        f"workers per model. Reduce TASKAWARE_RF_TREES or "
+        f"run fewer folds only if you accept the "
+        f"evaluation trade-off."
+    )
+
+
 def _group_values(groups):
     """
     Return group labels as an array, or None when groups
@@ -162,6 +245,10 @@ def cross_validate_model(
         ]
     )
 
+    import time as _time
+
+    _cv_start = _time.perf_counter()
+
     try:
 
         import warnings as _warnings
@@ -208,6 +295,9 @@ def cross_validate_model(
                 for s in scores
             ],
             "error": None,
+            "cv_seconds": round(
+                _time.perf_counter() - _cv_start, 3
+            ),
         }
 
     except Exception as exc:
@@ -218,6 +308,9 @@ def cross_validate_model(
             "error": (
                 "Cross-validation could not complete: "
                 f"{str(exc)[:160]}"
+            ),
+            "cv_seconds": round(
+                _time.perf_counter() - _cv_start, 3
             ),
         }
 
@@ -260,7 +353,11 @@ def train_and_evaluate(
         _time.perf_counter() - _fit_start, 3
     )
 
+    _pred_start = _time.perf_counter()
     y_pred = pipeline.predict(X_test)
+    predict_seconds = round(
+        _time.perf_counter() - _pred_start, 3
+    )
 
     if problem_type == "Classification":
 
@@ -293,6 +390,7 @@ def train_and_evaluate(
         )
 
     metrics["train_seconds"] = train_seconds
+    metrics["predict_seconds"] = predict_seconds
 
     return pipeline, y_pred, metrics
 
@@ -619,14 +717,21 @@ def run_classification(
 
     n_classes = len(np.unique(y))
 
+    import time as _time
+
+    _prep_start = _time.perf_counter()
     preprocessor = _build_preprocessor(schema)
 
     # Validate the preprocessor actually produces features
     transformed_preview = _validate_transformed_features(
         preprocessor, X_train
     )
+    preprocessing_seconds = round(
+        _time.perf_counter() - _prep_start, 3
+    )
 
     n_transformed = int(transformed_preview.shape[1])
+    n_rows_total = int(len(X))
 
     models = recommend_models(
         schema,
@@ -657,13 +762,29 @@ def run_classification(
             preprocessor=preprocessor,
         )
 
+        try:
+            _estimator_params = config["estimator"].get_params()
+        except Exception:
+            _estimator_params = {}
+
         results.append({
             "name": config["name"],
             "cv_mean": cv["mean"],
             "cv_std": cv["std"],
             "cv_folds": cv["all_folds"],
+            "cv_seconds": cv.get("cv_seconds"),
             "compatible_reason": config["reason"],
             **metrics,
+            "warning": rf_slow_warning(
+                config["name"],
+                n_rows_total,
+                n_transformed,
+                _estimator_params.get("n_estimators"),
+                _estimator_params.get("n_jobs"),
+                5,
+                fit_seconds=metrics.get("train_seconds"),
+                cv_seconds=cv.get("cv_seconds"),
+            ),
         })
 
     return {
@@ -679,6 +800,7 @@ def run_classification(
         "used_chronological_split": split_info["chronological"],
         "used_group_split": split_info["group"],
         "n_transformed_features": n_transformed,
+        "preprocessing_seconds": preprocessing_seconds,
         "feature_accounting": feature_accounting(
             df,
             target_column,
@@ -730,13 +852,20 @@ def run_regression(
     else:
         cv_groups = None
 
+    import time as _time
+
+    _prep_start = _time.perf_counter()
     preprocessor = _build_preprocessor(schema)
 
     transformed_preview = _validate_transformed_features(
         preprocessor, X_train
     )
+    preprocessing_seconds = round(
+        _time.perf_counter() - _prep_start, 3
+    )
 
     n_transformed = int(transformed_preview.shape[1])
+    n_rows_total = int(len(X))
 
     models = recommend_models(
         schema,
@@ -766,13 +895,29 @@ def run_regression(
             preprocessor=preprocessor,
         )
 
+        try:
+            _estimator_params = config["estimator"].get_params()
+        except Exception:
+            _estimator_params = {}
+
         results.append({
             "name": config["name"],
             "cv_mean": cv["mean"],
             "cv_std": cv["std"],
             "cv_folds": cv["all_folds"],
+            "cv_seconds": cv.get("cv_seconds"),
             "compatible_reason": config["reason"],
             **metrics,
+            "warning": rf_slow_warning(
+                config["name"],
+                n_rows_total,
+                n_transformed,
+                _estimator_params.get("n_estimators"),
+                _estimator_params.get("n_jobs"),
+                5,
+                fit_seconds=metrics.get("train_seconds"),
+                cv_seconds=cv.get("cv_seconds"),
+            ),
         })
 
     return {
@@ -787,6 +932,7 @@ def run_regression(
         "used_chronological_split": split_info["chronological"],
         "used_group_split": split_info["group"],
         "n_transformed_features": n_transformed,
+        "preprocessing_seconds": preprocessing_seconds,
         "feature_accounting": feature_accounting(
             df,
             target_column,

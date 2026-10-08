@@ -8,7 +8,167 @@ not) included.
 For text datasets, only sparse-compatible linear models are
 used by default, because tree/ensemble models are slow and
 memory-hungry on large TF-IDF matrices.
+
+Environment configuration (all optional; defaults preserve
+existing behavior exactly):
+
+    TASKAWARE_RF_TREES
+        Number of trees for Random Forest estimators.
+        Must be an integer >= 1. Default 100. Invalid
+        values fall back to 100 with a visible note.
+
+    TASKAWARE_RF_JOBS
+        Parallel workers for Random Forest estimators.
+        Must be -1 (all CPUs) or an integer >= 1.
+        Default -1. Invalid values fall back to -1 with
+        a visible note.
 """
+
+import os
+
+
+DEFAULT_RF_TREES = 100
+DEFAULT_RF_JOBS = -1
+
+
+def _parse_positive_int(raw, minimum=1):
+    """
+    Parse a strictly positive integer from an environment
+    string. Returns None for missing, non-integer, boolean-
+    style or out-of-range values (including 0, negatives
+    and floats such as "10.5").
+    """
+    if raw is None:
+        return None
+
+    text = str(raw).strip()
+
+    if not text:
+        return None
+
+    if text[0] in ("+", "-"):
+        if text[0] == "-":
+            return None
+        text = text[1:]
+
+    if not text.isdigit():
+        return None
+
+    try:
+        value = int(text)
+    except (TypeError, ValueError):
+        return None
+
+    if value < minimum:
+        return None
+
+    return value
+
+
+def resolve_rf_config():
+    """
+    Resolve the Random Forest configuration from the
+    environment without changing defaults.
+
+    Returns
+    -------
+    dict
+        n_estimators, n_jobs, warnings (possibly empty),
+        overridden (True when an env var was applied).
+    """
+    warnings = []
+    overridden = False
+
+    trees_raw = os.environ.get("TASKAWARE_RF_TREES")
+    jobs_raw = os.environ.get("TASKAWARE_RF_JOBS")
+
+    n_estimators = DEFAULT_RF_TREES
+    n_jobs = DEFAULT_RF_JOBS
+
+    if trees_raw is not None and str(trees_raw).strip() != "":
+        parsed = _parse_positive_int(trees_raw, minimum=1)
+
+        if parsed is None:
+            warnings.append(
+                "TASKAWARE_RF_TREES="
+                f"{trees_raw!r} is invalid; using default "
+                f"{DEFAULT_RF_TREES}."
+            )
+        else:
+            n_estimators = parsed
+            overridden = True
+
+    if jobs_raw is not None and str(jobs_raw).strip() != "":
+        text = str(jobs_raw).strip()
+
+        if text == "-1":
+            n_jobs = -1
+            overridden = True
+        else:
+            parsed = _parse_positive_int(text, minimum=1)
+
+            if parsed is None:
+                warnings.append(
+                    "TASKAWARE_RF_JOBS="
+                    f"{jobs_raw!r} is invalid; using default "
+                    f"{DEFAULT_RF_JOBS}."
+                )
+            else:
+                n_jobs = parsed
+                overridden = True
+
+    return {
+        "n_estimators": n_estimators,
+        "n_jobs": n_jobs,
+        "warnings": warnings,
+        "overridden": overridden,
+    }
+
+
+def _rf_reason(base_reason):
+    """
+    Append any RF configuration fallback warnings to the
+    model reason so misconfiguration stays visible in the
+    existing UI without template changes.
+    """
+    notes = resolve_rf_config()["warnings"]
+
+    if not notes:
+        return base_reason
+
+    return base_reason + " " + " ".join(notes)
+
+
+def _rf_classifier():
+    """
+    Random Forest classifier honoring TASKAWARE_RF_TREES
+    and TASKAWARE_RF_JOBS (defaults 100 / -1).
+    """
+    from sklearn.ensemble import RandomForestClassifier
+
+    config = resolve_rf_config()
+
+    return RandomForestClassifier(
+        n_estimators=config["n_estimators"],
+        random_state=42,
+        n_jobs=config["n_jobs"],
+    )
+
+
+def _rf_regressor():
+    """
+    Random Forest regressor honoring TASKAWARE_RF_TREES
+    and TASKAWARE_RF_JOBS (defaults 100 / -1).
+    """
+    from sklearn.ensemble import RandomForestRegressor
+
+    config = resolve_rf_config()
+
+    return RandomForestRegressor(
+        n_estimators=config["n_estimators"],
+        random_state=42,
+        n_jobs=config["n_jobs"],
+    )
 
 
 def recommend_models(
@@ -149,18 +309,14 @@ def _classification_models(has_text, has_numeric):
         },
         {
             "name": "Random Forest",
-            "estimator": RandomForestClassifier(
-                n_estimators=100,
-                random_state=42,
-                n_jobs=-1,
-            ),
+            "estimator": _rf_classifier(),
             "supports_probability": True,
             "compatible": not has_text,
             "reason": (
                 "Not used for text data (slow on sparse "
                 "TF-IDF matrices)."
                 if has_text
-                else "Strong ensemble classifier."
+                else _rf_reason("Strong ensemble classifier.")
             ),
             "priority": 5,
         },
@@ -224,17 +380,13 @@ def _regression_models(has_text, has_numeric):
         },
         {
             "name": "Random Forest",
-            "estimator": RandomForestRegressor(
-                n_estimators=100,
-                random_state=42,
-                n_jobs=-1,
-            ),
+            "estimator": _rf_regressor(),
             "supports_probability": False,
             "compatible": not has_text,
             "reason": (
                 "Not used for text data."
                 if has_text
-                else "Strong ensemble regressor."
+                else _rf_reason("Strong ensemble regressor.")
             ),
             "priority": 4,
         },
